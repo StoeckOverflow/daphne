@@ -114,7 +114,7 @@ def plot_stacked_timing_comparison(without_property_data, with_property_data, sa
     index = np.arange(2)
     bar_width = 0.35
 
-    fig, ax = plt.subplots(figsize=(8, 18))
+    fig, ax = plt.subplots(figsize=(8, 22))
 
     ax.bar(index[0], without_property_times[0], bar_width, label='Startup', color=phase_colors[0])
     ax.bar(index[0], without_property_times[1], bar_width, bottom=without_property_times[0], label='Parsing', color=phase_colors[1])
@@ -133,7 +133,7 @@ def plot_stacked_timing_comparison(without_property_data, with_property_data, sa
     ax.set_xticks(index)
     ax.set_xticklabels(labels)
     
-    ax.set_ylim(0,20)
+    ax.set_ylim(0,30)
     ax.yaxis.set_major_locator(ticker.MultipleLocator(0.5)) 
 
     ax.legend()
