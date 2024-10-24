@@ -51,7 +51,8 @@ namespace mlir::daphne {
     std::unique_ptr<Pass> createModOpLoweringPass();
     std::unique_ptr<Pass> createInferencePass(InferenceConfig cfg = {false, true, true, true, true});
     std::unique_ptr<Pass> createRecordPropertiesPass();
-    std::unique_ptr<Pass> createInsertPropertiesPass(const std::string jsonFile = "");
+    std::unique_ptr<OperationPass<func::FuncOp>> createInsertPropertiesPass(
+        std::string properties_file_path = "");
     std::unique_ptr<Pass> createInsertDaphneContextPass(const DaphneUserConfig& cfg);
     std::unique_ptr<Pass> createDaphneOptPass();
     std::unique_ptr<OperationPass<ModuleOp>> createMatMulOpLoweringPass(bool matmul_tile,
