@@ -1,0 +1,24 @@
+x = 10;
+Z = fill(0, x, x);
+coordinates = [0,0];
+
+for (i in 0:(x-1))
+{
+    for (j in 0:(x-1))
+    {
+        coordinates = cbind(coordinates, [i,j]); 
+    }
+}
+coordinates = t(coordinates[:,1:]);
+pos = sample(x^2, x^2, false, -1);
+Z = CSR(Z);
+
+for (k in 0:(x^2-1))
+{
+    pos_curr = coordinates[as.scalar(pos[k,]), :];
+    row = as.scalar(pos_curr[,0]);
+    col = as.scalar(pos_curr[,1]);
+    Z[row, col] = rand(1, 1, 1, 10, 1.0, -1);
+}
+print(Z);
+print(sum(Z)); 
