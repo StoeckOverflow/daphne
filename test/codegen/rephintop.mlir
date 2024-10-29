@@ -1,5 +1,5 @@
 // RUN: daphne-opt %s | FileCheck %s --check-prefix=CHECK-PARSING
-// RUN: daphne-opt --canonicalize %s | FileCheck %s --check-prefix=CHECK-SIMPLIFIED -dump-input=always
+// RUN: daphne-opt --canonicalize %s | FileCheck %s --check-prefix=CHECK-SIMPLIFIED
 
 module {
   func.func @main() {

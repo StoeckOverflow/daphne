@@ -20,6 +20,7 @@
 #include <runtime/local/context/DaphneContext.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
+#include <runtime/local/datastructures/CSRMatrix.h>
 #include <runtime/local/datastructures/Matrix.h>
 
 #include <sstream>
@@ -184,6 +185,140 @@ struct InsertRow<Matrix<VT>, Matrix<VT>, VTSel> {
             for (size_t c = 0; c < numColsArg; ++c)
                 res->append(r, c, arg->get(r, c));
         res->finishAppend();
+    }
+};
+
+// ----------------------------------------------------------------------------
+// CSRMatrix <- DenseMatrix
+// ----------------------------------------------------------------------------
+
+template<typename VT, typename VTSel>
+struct InsertRow<CSRMatrix<VT>, DenseMatrix<VT>, VTSel> {
+    static void apply(
+        CSRMatrix<VT>*& res,
+        const CSRMatrix<VT>* arg, const DenseMatrix<VT>* ins,
+        VTSel rowLowerIncl, VTSel rowUpperExcl,
+        DCTX(ctx)
+    ) {
+        const size_t numRowsArg = arg->getNumRows();
+        const size_t numColsArg = arg->getNumCols();
+        const size_t numRowsIns = ins->getNumRows();
+        const size_t numColsIns = ins->getNumCols();
+
+        const size_t rowLowerIncl_Size = static_cast<size_t>(rowLowerIncl);
+        const size_t rowUpperExcl_Size = static_cast<size_t>(rowUpperExcl);
+
+        validateArgsInsertRow(rowLowerIncl_Size, rowLowerIncl, rowUpperExcl_Size, rowUpperExcl,
+                              numRowsArg, numColsArg, numRowsIns, numColsIns);
+
+        // Compute the number of non-zeros in the result matrix
+        size_t nnzArg = arg->getNumNonZeros();
+        size_t nnzArgRemoved = 0;
+        for (size_t r = rowLowerIncl_Size; r < rowUpperExcl_Size; ++r)
+            nnzArgRemoved += arg->getNumNonZeros(r);
+
+        size_t nnzIns = 0;
+        for (size_t r = 0; r < numRowsIns; ++r)
+            for (size_t c = 0; c < numColsIns; ++c)
+                if (ins->get(r, c) != VT(0))
+                    ++nnzIns;
+
+        size_t nnzRes = nnzArg - nnzArgRemoved + nnzIns;
+
+        if (res == nullptr)
+            res = DataObjectFactory::create<CSRMatrix<VT>>(numRowsArg, numColsArg, nnzRes, false);
+
+        res->prepareAppend();
+
+        // Copy rows before rowLowerIncl from arg
+        for (size_t r = 0; r < rowLowerIncl_Size; ++r) {
+            const size_t nnz = arg->getNumNonZeros(r);
+            const size_t* colIdxs = arg->getColIdxs(r);
+            const VT* values = arg->getValues(r);
+            for (size_t i = 0; i < nnz; ++i)
+                res->append(r, colIdxs[i], values[i]);
+        }
+
+        // Insert rows from ins
+        for (size_t r = 0; r < numRowsIns; ++r) {
+            size_t resRowIdx = rowLowerIncl_Size + r;
+            for (size_t c = 0; c < numColsIns; ++c) {
+                VT val = ins->get(r, c);
+                if (val != VT(0))
+                    res->append(resRowIdx, c, val);
+            }
+        }
+
+        // Copy rows after rowUpperExcl from arg
+        for (size_t r = rowUpperExcl_Size; r < numRowsArg; ++r) {
+            const size_t nnz = arg->getNumNonZeros(r);
+            const size_t* colIdxs = arg->getColIdxs(r);
+            const VT* values = arg->getValues(r);
+            for (size_t i = 0; i < nnz; ++i)
+                res->append(r, colIdxs[i], values[i]);
+        }
+
+        res->finishAppend();
+    }
+};
+
+// ----------------------------------------------------------------------------
+// DenseMatrix <- CSRMatrix
+// ----------------------------------------------------------------------------
+
+template<typename VT, typename VTSel>
+struct InsertRow<DenseMatrix<VT>, CSRMatrix<VT>, VTSel> {
+    static void apply(
+        DenseMatrix<VT>*& res,
+        const DenseMatrix<VT>* arg, const CSRMatrix<VT>* ins,
+        VTSel rowLowerIncl, VTSel rowUpperExcl,
+        DCTX(ctx)
+    ) {
+        const size_t numRowsArg = arg->getNumRows();
+        const size_t numColsArg = arg->getNumCols();
+        const size_t numRowsIns = ins->getNumRows();
+        const size_t numColsIns = ins->getNumCols();
+
+        const size_t rowLowerIncl_Size = static_cast<size_t>(rowLowerIncl);
+        const size_t rowUpperExcl_Size = static_cast<size_t>(rowUpperExcl);
+
+        validateArgsInsertRow(rowLowerIncl_Size, rowLowerIncl, rowUpperExcl_Size, rowUpperExcl,
+                              numRowsArg, numColsArg, numRowsIns, numColsIns);
+
+        if (res == nullptr)
+            res = DataObjectFactory::create<DenseMatrix<VT>>(numRowsArg, numColsArg, false);
+
+        VT* valuesRes = res->getValues();
+        const VT* valuesArg = arg->getValues();
+        const size_t rowSkipRes = res->getRowSkip();
+        const size_t rowSkipArg = arg->getRowSkip();
+
+        // Copy rows before rowLowerIncl from arg
+        for (size_t r = 0; r < rowLowerIncl_Size; ++r) {
+            memcpy(valuesRes, valuesArg, numColsArg * sizeof(VT));
+            valuesRes += rowSkipRes;
+            valuesArg += rowSkipArg;
+        }
+
+        // Insert rows from ins
+        for (size_t r = 0; r < numRowsIns; ++r) {
+            memset(valuesRes, 0, numColsArg * sizeof(VT)); // Initialize with zeros
+            const size_t nnz = ins->getNumNonZeros(r);
+            const size_t* colIdxs = ins->getColIdxs(r);
+            const VT* valuesIns = ins->getValues(r);
+            for (size_t i = 0; i < nnz; ++i)
+                valuesRes[colIdxs[i]] = valuesIns[i];
+            valuesRes += rowSkipRes;
+        }
+
+        valuesArg += rowSkipArg * numRowsIns; // Skip rows in arg
+
+        // Copy rows after rowUpperExcl from arg
+        for (size_t r = rowUpperExcl_Size; r < numRowsArg; ++r) {
+            memcpy(valuesRes, valuesArg, numColsArg * sizeof(VT));
+            valuesRes += rowSkipRes;
+            valuesArg += rowSkipArg;
+        }
     }
 };
 

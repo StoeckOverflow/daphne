@@ -20,6 +20,7 @@
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
 #include <runtime/local/datastructures/Matrix.h>
+#include <runtime/local/datastructures/CSRMatrix.h>
 
 // ****************************************************************************
 // Struct for partial template specialization
@@ -77,6 +78,31 @@ struct Fill<Matrix<VT>, VT> {
             for (size_t r = 0; r < numRows; ++r)
                 for (size_t c = 0; c < numCols; ++c)
                     res->append(r, c, arg);
+            res->finishAppend();
+        }
+    }
+};
+
+// ----------------------------------------------------------------------------
+// CSRMatrix
+// ----------------------------------------------------------------------------
+
+template<typename VT>
+struct Fill<CSRMatrix<VT>, VT> {
+    static void apply(CSRMatrix<VT> *& res, VT arg, size_t numRows, size_t numCols, DCTX(ctx)) {
+        if (res == nullptr) {
+            // Estimate the number of non-zero elements. If arg == 0, all elements are zero.
+            size_t maxNonZeros = (arg == VT(0)) ? 0 : numRows * numCols;
+            res = DataObjectFactory::create<CSRMatrix<VT>>(numRows, numCols, maxNonZeros, arg == 0);
+        }
+
+        if (arg != VT(0)) {
+            res->prepareAppend();
+            for (size_t r = 0; r < numRows; ++r) {
+                for (size_t c = 0; c < numCols; ++c) {
+                    res->append(r, c, arg);
+                }
+            }
             res->finishAppend();
         }
     }

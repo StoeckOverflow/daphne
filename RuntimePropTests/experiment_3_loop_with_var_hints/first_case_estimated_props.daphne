@@ -1,4 +1,4 @@
-x = 10;
+x = 500;
 Z = fill(0, x, x);
 coordinates = [0,0];
 
@@ -19,5 +19,4 @@ for (k in 0:(x^2-1))
     col = as.scalar(pos_curr[,1]);
     Z[row, col] = rand(1, 1, 1, 10, 1.0, -1);
 }
-print(Z);
 print(sum(Z)); 

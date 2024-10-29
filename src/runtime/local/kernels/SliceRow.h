@@ -20,6 +20,7 @@
 #include <runtime/local/context/DaphneContext.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
+#include <runtime/local/datastructures/CSRMatrix.h>
 #include <runtime/local/datastructures/Frame.h>
 #include <runtime/local/datastructures/Matrix.h>
 #include <runtime/local/datastructures/ValueTypeCode.h>
@@ -115,6 +116,89 @@ struct SliceRow<Matrix<VTArg>, Matrix<VTArg>, VTSel> {
                 res->append(r, c, arg->get(static_cast<const size_t>(lowerIncl) + r, c));
         res->finishAppend();
     }        
+};
+
+// ----------------------------------------------------------------------------
+// DenseMatrix <- CSRMatrix
+// ----------------------------------------------------------------------------
+
+template<typename VTRes, typename VTArg, typename VTSel>
+struct SliceRow<DenseMatrix<VTRes>, CSRMatrix<VTArg>, VTSel> {
+    static void apply(DenseMatrix<VTRes>*& res, const CSRMatrix<VTArg>* arg, const VTSel lowerIncl, const VTSel upperExcl, DCTX(ctx)) {
+        const size_t numRowsArg = arg->getNumRows();
+        const size_t numColsArg = arg->getNumCols();
+        validateArgsSliceRow(lowerIncl, upperExcl, numRowsArg);
+        const size_t numRowsRes = static_cast<size_t>(upperExcl - lowerIncl);
+
+        // Initialize result matrix with zeros
+        if (res == nullptr)
+            res = DataObjectFactory::create<DenseMatrix<VTRes>>(numRowsRes, numColsArg, true);  // 'true' initializes with zeros
+        else {
+            if (res->getNumRows() != numRowsRes || res->getNumCols() != numColsArg)
+                throw std::runtime_error("Result matrix has incorrect dimensions.");
+            // Zero out the existing matrix
+            memset(res->getValues(), 0, res->getNumRows() * res->getRowSkip() * sizeof(VTRes));
+        }
+
+        // Copy non-zero elements from CSRMatrix to DenseMatrix
+        for (size_t r = 0; r < numRowsRes; ++r) {
+            size_t argRowIdx = static_cast<size_t>(lowerIncl) + r;
+            const size_t rowNumNonZeros = arg->getNumNonZeros(argRowIdx);
+            const size_t* rowColIdxs = arg->getColIdxs(argRowIdx);
+            const VTArg* rowValues = arg->getValues(argRowIdx);
+            for (size_t i = 0; i < rowNumNonZeros; ++i) {
+                size_t c = rowColIdxs[i];
+                VTArg val = rowValues[i];
+                res->set(r, c, static_cast<VTRes>(val));
+            }
+        }
+    }
+};
+
+// ----------------------------------------------------------------------------
+// CSRMatrix <- DenseMatrix
+// ----------------------------------------------------------------------------
+
+template<typename VTRes, typename VTArg, typename VTSel>
+struct SliceRow<CSRMatrix<VTRes>, DenseMatrix<VTArg>, VTSel> {
+    static void apply(CSRMatrix<VTRes>*& res, const DenseMatrix<VTArg>* arg, const VTSel lowerIncl, const VTSel upperExcl, DCTX(ctx)) {
+        const size_t numRowsArg = arg->getNumRows();
+        const size_t numColsArg = arg->getNumCols();
+        validateArgsSliceRow(lowerIncl, upperExcl, numRowsArg);
+        const size_t numRowsRes = static_cast<size_t>(upperExcl - lowerIncl);
+
+        // Count the number of non-zero elements
+        size_t nnz = 0;
+        for (size_t r = 0; r < numRowsRes; ++r) {
+            size_t argRowIdx = static_cast<size_t>(lowerIncl) + r;
+            for (size_t c = 0; c < numColsArg; ++c) {
+                if (arg->get(argRowIdx, c) != VTArg(0))
+                    ++nnz;
+            }
+        }
+
+        // Initialize CSRMatrix with the number of non-zero elements
+        if (res == nullptr)
+            res = DataObjectFactory::create<CSRMatrix<VTRes>>(numRowsRes, numColsArg, nnz, false);
+        else {
+            if (res->getNumRows() != numRowsRes || res->getNumCols() != numColsArg)
+                throw std::runtime_error("Result matrix has incorrect dimensions.");
+            res->prepareAppend();
+        }
+
+        // Fill the CSRMatrix with non-zero elements from DenseMatrix
+        res->prepareAppend();
+        for (size_t r = 0; r < numRowsRes; ++r) {
+            size_t argRowIdx = static_cast<size_t>(lowerIncl) + r;
+            for (size_t c = 0; c < numColsArg; ++c) {
+                VTArg val = arg->get(argRowIdx, c);
+                if (val != VTArg(0)) {
+                    res->append(r, c, static_cast<VTRes>(val));
+                }
+            }
+        }
+        res->finishAppend();
+    }
 };
 
 #endif //SRC_RUNTIME_LOCAL_KERNELS_SLICEROW_H

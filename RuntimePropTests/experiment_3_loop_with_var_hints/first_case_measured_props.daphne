@@ -1,5 +1,5 @@
-x = 10;
-Z = fill(0, x, x);
+x = 500;
+Z = rand(x, x, 0, 1, 0.0, -1);
 coordinates = [0,0];
 
 for (i in 0:(x-1))
@@ -11,7 +11,6 @@ for (i in 0:(x-1))
 }
 coordinates = t(coordinates[:,1:]);
 pos = sample(x^2, x^2, false, -1);
-Z = CSR(Z);
 
 for (k in 0:(x^2-1))
 {
@@ -20,5 +19,4 @@ for (k in 0:(x^2-1))
     col = as.scalar(pos_curr[,1]);
     Z[row, col] = rand(1, 1, 1, 10, 1.0, -1);
 }
-print(Z);
 print(sum(Z)); 
