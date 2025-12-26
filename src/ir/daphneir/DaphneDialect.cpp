@@ -62,6 +62,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <limits>
 
 struct DaphneInlinerInterface : public mlir::DialectInlinerInterface {
     using DialectInlinerInterface::DialectInlinerInterface;
@@ -131,6 +132,10 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
         double sparsity = -1.0;
         MatrixRepresentation representation = MatrixRepresentation::Default; // default is dense
         BoolOrUnknown symmetric = BoolOrUnknown::Unknown;
+        MatrixSortness sortness = MatrixSortness::Unknown;
+        std::optional<double> minValue = std::nullopt;
+        std::optional<double> maxValue = std::nullopt;
+        ssize_t distinct = -1;
         mlir::Type elementType;
         if (parser.parseLess()) {
             return nullptr;
@@ -176,6 +181,20 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
                     return nullptr;
                 }
                 symmetric = stringToBoolOrUnknown(symmetricStr.str());
+            } else if (succeeded(parser.parseOptionalKeyword("sortness"))) {
+                llvm::StringRef sortnessStr;
+                if (parser.parseLSquare() || parser.parseKeyword(&sortnessStr) || parser.parseRSquare()) {
+                    return nullptr;
+                }
+                sortness = stringToMatrixSortness(sortnessStr.str());
+            } else if (succeeded(parser.parseOptionalKeyword("distnct"))) {
+                if (distinct != -1) {
+                    // read sparsity twice
+                    return nullptr;
+                }
+                if (parser.parseLSquare() || parser.parseFloat(sparsity) || parser.parseRSquare()) {
+                    return nullptr;
+                }
             } else {
                 return nullptr;
             }
@@ -185,7 +204,7 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
         }
 
         return MatrixType::get(parser.getBuilder().getContext(), elementType, numRows, numCols, sparsity,
-                               representation, symmetric);
+                               representation, symmetric, sortness, minValue, maxValue, distinct, -1);
     } else if (keyword == "Frame") {
         ssize_t numRows = -1;
         ssize_t numCols = -1;
@@ -255,6 +274,10 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         auto sparsity = t.getSparsity();
         auto representation = t.getRepresentation();
         auto symmetric = t.getSymmetric();
+        auto sortness = t.getSortness();
+        auto minValue = t.getMinValue();
+        auto maxValue = t.getMaxValue();
+        auto distinct = t.getDistinct();
 
         if (sparsity != -1.0) {
             os << ":sp[" << sparsity << ']';
@@ -262,8 +285,18 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         if (representation != MatrixRepresentation::Default) {
             os << ":rep[" << matrixRepresentationToString(representation) << ']';
         }
-        if (symmetric != BoolOrUnknown::Unknown) {
+        if (symmetric == BoolOrUnknown::Unknown) {
             os << ":symmetric[" << boolOrUnknownToString(symmetric) << ']';
+        }
+        if (sortness == MatrixSortness::Unknown) {
+            os << ":sortness[" << matrixSortnessToString(sortness) << ']';
+        }
+        if (minValue != -1 || maxValue != -1) {
+            os << ":min[" << minValue << ']';
+            os << ":max[" << maxValue << ']';
+        }
+        if (distinct != -1.0) {
+            os << ":dist[" << distinct << ']';
         }
         os << '>';
     } else if (auto t = llvm::dyn_cast<mlir::daphne::FrameType>(type)) {
@@ -359,52 +392,40 @@ BoolOrUnknown mlir::daphne::stringToBoolOrUnknown(const std::string &str) {
         throw std::runtime_error("no BoolOrUnknown equals the string `" + str + "`");
 }
 
+std::string mlir::daphne::matrixSortnessToString(MatrixSortness s) {
+    switch (s) {
+    case MatrixSortness::Unknown:
+        return "?";
+    case MatrixSortness::SortedAsc:
+        return "sortedAsc";
+    case MatrixSortness::SortedDesc:
+        return "sortedDesc";
+    case MatrixSortness::NotSorted:
+        return "notSorted";
+    case MatrixSortness::AllEqual:
+        return "AllEqual";
+    default:
+        throw std::runtime_error("unknown MatrixSortness " + std::to_string(static_cast<int>(s)));
+    }
+}
+
+MatrixSortness mlir::daphne::stringToMatrixSortness(const std::string &str) {
+    if (str == "?")
+        return MatrixSortness::Unknown;
+    else if (str == "sortedAsc")
+        return MatrixSortness::SortedAsc;
+    else if (str == "sortedDesc")
+        return MatrixSortness::SortedDesc;
+    else if (str == "notSorted")
+        return MatrixSortness::NotSorted;
+    else if (str == "AllEqual")
+        return MatrixSortness::AllEqual;
+    else
+        throw std::runtime_error("no MatrixSortness equals the string `" + str + "`");
+}
+
 namespace mlir::daphne {
 namespace detail {
-
-// Constructor implementation
-MatrixTypeStorage::MatrixTypeStorage(::mlir::Type elementType, ssize_t numRows, ssize_t numCols, double sparsity,
-                                     MatrixRepresentation representation, BoolOrUnknown symmetric)
-    : elementType(elementType), numRows(numRows), numCols(numCols), sparsity(sparsity), representation(representation),
-      symmetric(symmetric) {}
-
-// Equality operator implementation
-bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
-    if (!(elementType == std::get<0>(tblgenKey)))
-        return false;
-    if (numRows != std::get<1>(tblgenKey))
-        return false;
-    if (numCols != std::get<2>(tblgenKey))
-        return false;
-    if (std::fabs(sparsity - std::get<3>(tblgenKey)) >= epsilon)
-        return false;
-    if (representation != std::get<4>(tblgenKey))
-        return false;
-    if (symmetric != std::get<5>(tblgenKey))
-        return false;
-    return true;
-}
-
-// Hash key implementation
-::llvm::hash_code MatrixTypeStorage::hashKey(const KeyTy &tblgenKey) {
-    auto float_hashable = static_cast<ssize_t>(std::get<3>(tblgenKey) / epsilon);
-    return ::llvm::hash_combine(std::get<0>(tblgenKey), std::get<1>(tblgenKey), std::get<2>(tblgenKey), float_hashable,
-                                std::get<4>(tblgenKey), std::get<5>(tblgenKey));
-}
-
-// Construct implementation
-MatrixTypeStorage *MatrixTypeStorage::construct(::mlir::TypeStorageAllocator &allocator, const KeyTy &tblgenKey) {
-    auto elementType = std::get<0>(tblgenKey);
-    auto numRows = std::get<1>(tblgenKey);
-    auto numCols = std::get<2>(tblgenKey);
-    auto sparsity = std::get<3>(tblgenKey);
-    auto representation = std::get<4>(tblgenKey);
-    auto symmetric = std::get<5>(tblgenKey);
-
-    return new (allocator.allocate<MatrixTypeStorage>())
-        MatrixTypeStorage(elementType, numRows, numCols, sparsity, representation, symmetric);
-}
-
 } // namespace detail
 ::mlir::Type MatrixType::getElementType() const { return getImpl()->elementType; }
 ssize_t MatrixType::getNumRows() const { return getImpl()->numRows; }
@@ -412,12 +433,19 @@ ssize_t MatrixType::getNumCols() const { return getImpl()->numCols; }
 double MatrixType::getSparsity() const { return getImpl()->sparsity; }
 MatrixRepresentation MatrixType::getRepresentation() const { return getImpl()->representation; }
 BoolOrUnknown MatrixType::getSymmetric() const { return getImpl()->symmetric; }
+MatrixSortness MatrixType::getSortness() const { return getImpl()->sortness; }
+std::optional<double> MatrixType::getMinValue() const { return getImpl()->minValue; }
+std::optional<double> MatrixType::getMaxValue() const { return getImpl()->maxValue; }
+ssize_t MatrixType::getDistinct() const { return getImpl()->distinct; }
+ssize_t MatrixType::getSparsityPatternID() const { return getImpl()->sparsityPatternID; }
 } // namespace mlir::daphne
 
 ::mlir::LogicalResult mlir::daphne::MatrixType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
                                                        Type elementType, ssize_t numRows, ssize_t numCols,
                                                        double sparsity, MatrixRepresentation rep,
-                                                       BoolOrUnknown symmetric) {
+                                                       BoolOrUnknown symmetric, MatrixSortness sortness,
+                                                       std::optional<double> minValue, std::optional<double> maxValue,
+                                                       ssize_t distinct, ssize_t sparsityPatternID) {
     if ((
             // Value type is unknown.
             llvm::isa<mlir::daphne::UnknownType>(elementType)
@@ -433,7 +461,13 @@ BoolOrUnknown MatrixType::getSymmetric() const { return getImpl()->symmetric; }
         (sparsity == -1 || (sparsity >= 0.0 && sparsity <= 1.0)) &&
         (
             // "symmetric is true" must imply that the matrix is square or the shape is unknown.
-            symmetric != BoolOrUnknown::True || (numRows == numCols || numRows == -1 || numCols == -1)))
+            symmetric != BoolOrUnknown::True || (numRows == numCols || numRows == -1 || numCols == -1)) &&
+        (
+            // "sorted" must imply that the matrix is a vector (row or column) or shape is unknown
+            (sortness == MatrixSortness::Unknown || sortness == MatrixSortness::NotSorted) ||
+            (numRows == 1 || numCols == 1 || numRows == -1 || numCols == -1)
+        ) &&
+        (distinct >= -1))
         return mlir::success();
     else
         return emitError() << "invalid matrix element type: " << elementType;

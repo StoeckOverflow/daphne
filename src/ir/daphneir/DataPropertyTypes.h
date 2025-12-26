@@ -23,7 +23,7 @@
 
 namespace mlir::daphne {
 enum class BoolOrUnknown { Unknown = -1, False = 0, True = 1 };
+enum class MatrixSortness { Unknown = -1, NotSorted = 0, SortedAsc = 1, SortedDesc = 2, AllEqual = 3 };
 } // namespace mlir::daphne
-
-// Make it available in the global namespace for backward compatibility if needed
 using mlir::daphne::BoolOrUnknown;
+using mlir::daphne::MatrixSortness;

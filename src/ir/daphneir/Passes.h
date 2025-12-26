@@ -31,13 +31,18 @@
 namespace mlir::daphne {
 struct InferenceConfig {
     InferenceConfig(bool partialInferenceAllowed, bool typeInference, bool shapeInference, bool frameLabelInference,
-                    bool sparsityInference, bool symmetricInference);
+                    bool sparsityInference, bool sparsityPatternInference, bool symmetricInference, bool sortnessInference, bool minMaxInference,
+                    bool distinctInference);
     bool partialInferenceAllowed;
     bool typeInference;
     bool shapeInference;
     bool frameLabelInference;
     bool sparsityInference;
+    bool sparsityPatternInference;
     bool symmetricInference;
+    bool sortnessInference;
+    bool minMaxInference;
+    bool distinctInference;
 };
 
 // alphabetically sorted list of passes
@@ -46,7 +51,7 @@ std::unique_ptr<Pass> createConvertDaphneToLinalgPass();
 std::unique_ptr<Pass> createDaphneOptPass();
 std::unique_ptr<Pass> createDistributeComputationsPass();
 std::unique_ptr<Pass> createDistributePipelinesPass();
-std::unique_ptr<Pass> createInferencePass(InferenceConfig cfg = {false, true, true, true, true, true});
+std::unique_ptr<Pass> createInferencePass(InferenceConfig cfg = {false, true, true, true, true, true, true, true, true, true});
 std::unique_ptr<Pass> createRecordPropertiesPass();
 std::unique_ptr<OperationPass<func::FuncOp>> createInsertPropertiesPass(std::string properties_file_path = "");
 std::unique_ptr<Pass> createInsertDaphneContextPass(const DaphneUserConfig &cfg);
@@ -64,6 +69,7 @@ std::unique_ptr<Pass> createSpecializeGenericFunctionsPass(const DaphneUserConfi
 std::unique_ptr<Pass> createVectorizeComputationsPass(bool isRestricted);
 std::unique_ptr<Pass> createHorizontalFusionPass();
 std::unique_ptr<Pass> createTransferDataPropertiesPass();
+std::unique_ptr<Pass> createTransferDataPropertiesPass(const DaphneUserConfig &cfg);
 #ifdef USE_CUDA
 std::unique_ptr<Pass> createMarkCUDAOpsPass(const DaphneUserConfig &cfg);
 #endif
