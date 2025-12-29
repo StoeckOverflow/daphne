@@ -426,6 +426,8 @@ MatrixSortness mlir::daphne::stringToMatrixSortness(const std::string &str) {
 
 namespace mlir::daphne {
 namespace detail {
+
+
 } // namespace detail
 ::mlir::Type MatrixType::getElementType() const { return getImpl()->elementType; }
 ssize_t MatrixType::getNumRows() const { return getImpl()->numRows; }
@@ -438,6 +440,11 @@ std::optional<double> MatrixType::getMinValue() const { return getImpl()->minVal
 std::optional<double> MatrixType::getMaxValue() const { return getImpl()->maxValue; }
 ssize_t MatrixType::getDistinct() const { return getImpl()->distinct; }
 ssize_t MatrixType::getSparsityPatternID() const { return getImpl()->sparsityPatternID; }
+
+::mlir::Type ColumnType::getValueType() const { return getImpl()->valueType; }
+ssize_t ColumnType::getNumRows() const { return getImpl()->numRows; }
+std::optional<double> ColumnType::getMinValue() const { return getImpl()->minValue; }
+std::optional<double> ColumnType::getMaxValue() const { return getImpl()->maxValue; }
 } // namespace mlir::daphne
 
 ::mlir::LogicalResult mlir::daphne::MatrixType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
@@ -502,7 +509,8 @@ ssize_t MatrixType::getSparsityPatternID() const { return getImpl()->sparsityPat
 }
 
 ::mlir::LogicalResult mlir::daphne::ColumnType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
-                                                       Type valueType, ssize_t numRows) {
+                                                       Type valueType, ssize_t numRows,
+                                                       std::optional<double> minValue, std::optional<double> maxValue) {
     if (!CompilerUtils::isScaType(valueType) && !llvm::isa<mlir::daphne::UnknownType>(valueType))
         return mlir::failure();
     if (numRows < -1)

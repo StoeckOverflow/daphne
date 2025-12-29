@@ -40,13 +40,15 @@ struct MatrixTypeStorage : public ::mlir::TypeStorage {
     constexpr static const double epsilon = 1e-6;
     MatrixTypeStorage(::mlir::Type elementType, ssize_t numRows, ssize_t numCols, double sparsity,
                       MatrixRepresentation representation, BoolOrUnknown symmetric, MatrixSortness sortness,
-                      std::optional<double> minValue, std::optional<double> maxValue, ssize_t distinct, ssize_t sparsityPatternID)
+                      std::optional<double> minValue, std::optional<double> maxValue, ssize_t distinct,
+                      ssize_t sparsityPatternID)
         : elementType(elementType), numRows(numRows), numCols(numCols), sparsity(sparsity),
-          representation(representation), symmetric(symmetric), sortness(sortness),
-          minValue(minValue), maxValue(maxValue), distinct(distinct), sparsityPatternID(sparsityPatternID) {}
+          representation(representation), symmetric(symmetric), sortness(sortness), minValue(minValue),
+          maxValue(maxValue), distinct(distinct), sparsityPatternID(sparsityPatternID) {}
 
     /// The hash key is a tuple of the parameter types.
-    using KeyTy = std::tuple<::mlir::Type, ssize_t, ssize_t, double, MatrixRepresentation, BoolOrUnknown, MatrixSortness, std::optional<double>, std::optional<double>, ssize_t, ssize_t>;
+    using KeyTy = std::tuple<::mlir::Type, ssize_t, ssize_t, double, MatrixRepresentation, BoolOrUnknown,
+                             MatrixSortness, std::optional<double>, std::optional<double>, ssize_t, ssize_t>;
     bool operator==(const KeyTy &tblgenKey) const {
         if (!(elementType == std::get<0>(tblgenKey)))
             return false;
@@ -90,8 +92,8 @@ struct MatrixTypeStorage : public ::mlir::TypeStorage {
                                                         : std::numeric_limits<ssize_t>::min() + 1;
         return ::llvm::hash_combine(std::get<0>(tblgenKey), std::get<1>(tblgenKey), std::get<2>(tblgenKey),
                                     float_hashable, std::get<4>(tblgenKey), std::get<5>(tblgenKey),
-                                    std::get<6>(tblgenKey), min_hashable, max_hashable,
-                                    std::get<9>(tblgenKey), std::get<10>(tblgenKey));
+                                    std::get<6>(tblgenKey), min_hashable, max_hashable, std::get<9>(tblgenKey),
+                                    std::get<10>(tblgenKey));
     }
 
     /// Define a construction method for creating a new instance of this
@@ -110,7 +112,8 @@ struct MatrixTypeStorage : public ::mlir::TypeStorage {
         auto sparsityPatternID = std::get<10>(tblgenKey);
 
         return new (allocator.allocate<MatrixTypeStorage>())
-            MatrixTypeStorage(elementType, numRows, numCols, sparsity, representation, symmetric, sortness, minValue, maxValue, distinct, sparsityPatternID);
+            MatrixTypeStorage(elementType, numRows, numCols, sparsity, representation, symmetric, sortness, minValue,
+                              maxValue, distinct, sparsityPatternID);
     }
     ::mlir::Type elementType;
     ssize_t numRows;
@@ -123,6 +126,58 @@ struct MatrixTypeStorage : public ::mlir::TypeStorage {
     std::optional<double> maxValue;
     ssize_t distinct;
     ssize_t sparsityPatternID;
+};
+
+struct ColumnTypeStorage : public ::mlir::TypeStorage {
+    constexpr static const double epsilon = 1e-6;
+
+    ColumnTypeStorage(::mlir::Type valueType, ssize_t numRows, std::optional<double> minValue,
+                      std::optional<double> maxValue)
+        : valueType(valueType), numRows(numRows), minValue(minValue), maxValue(maxValue) {}
+
+    using KeyTy = std::tuple<::mlir::Type, ssize_t, std::optional<double>, std::optional<double>>;
+
+    bool operator==(const KeyTy &tblgenKey) const {
+        if (!(valueType == std::get<0>(tblgenKey)))
+            return false;
+        if (numRows != std::get<1>(tblgenKey))
+            return false;
+        // Compare optionals with epsilon tolerance when both present
+        const auto &minKey = std::get<2>(tblgenKey);
+        const auto &maxKey = std::get<3>(tblgenKey);
+        if (minValue.has_value() != minKey.has_value())
+            return false;
+        if (maxValue.has_value() != maxKey.has_value())
+            return false;
+        if (minValue && minKey && std::fabs(*minValue - *minKey) >= epsilon)
+            return false;
+        if (maxValue && maxKey && std::fabs(*maxValue - *maxKey) >= epsilon)
+            return false;
+        return true;
+    }
+
+    static ::llvm::hash_code hashKey(const KeyTy &tblgenKey) {
+        const auto &minKey = std::get<2>(tblgenKey);
+        const auto &maxKey = std::get<3>(tblgenKey);
+        const ssize_t min_hashable = minKey.has_value() ? static_cast<ssize_t>(std::llround(*minKey / epsilon))
+                                                        : std::numeric_limits<ssize_t>::min();
+        const ssize_t max_hashable = maxKey.has_value() ? static_cast<ssize_t>(std::llround(*maxKey / epsilon))
+                                                        : std::numeric_limits<ssize_t>::min() + 1;
+        return ::llvm::hash_combine(std::get<0>(tblgenKey), std::get<1>(tblgenKey), min_hashable, max_hashable);
+    }
+
+    static ColumnTypeStorage *construct(::mlir::TypeStorageAllocator &allocator, const KeyTy &tblgenKey) {
+        auto valueType = std::get<0>(tblgenKey);
+        auto numRows = std::get<1>(tblgenKey);
+        auto minValue = std::get<2>(tblgenKey);
+        auto maxValue = std::get<3>(tblgenKey);
+        return new (allocator.allocate<ColumnTypeStorage>()) ColumnTypeStorage(valueType, numRows, minValue, maxValue);
+    }
+
+    ::mlir::Type valueType;
+    ssize_t numRows;
+    std::optional<double> minValue;
+    std::optional<double> maxValue;
 };
 
 } // namespace detail
