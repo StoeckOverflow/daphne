@@ -33,6 +33,7 @@ enum class ValueTypeCode : uint8_t {
     SI64,
     // unsigned integers (uintx_t)
     UI8,
+    UI16,
     UI32,
     UI64,
     // floating point (float, double)

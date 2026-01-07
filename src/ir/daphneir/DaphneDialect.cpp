@@ -322,9 +322,20 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         } else
             os << '?';
         os << '>';
-    } else if (auto t = llvm::dyn_cast<mlir::daphne::ColumnType>(type)) {
-        os << "Column<" << unknownStrIf(t.getNumRows()) << "x" << t.getValueType() << '>';
-    } else if (auto t = llvm::dyn_cast<mlir::daphne::ListType>(type)) {
+    } else if (auto t = type.dyn_cast<mlir::daphne::ColumnType>()) {
+        os << "Column<" << unknownStrIf(t.getNumRows()) << "x" << t.getValueType();
+        
+        // Print min/max values if available
+        if (t.getMinValue().has_value() || t.getMaxValue().has_value()) {
+            os << ':';
+            if (t.getMinValue().has_value())
+                os << "min[" << t.getMinValue().value() << "]";
+            if (t.getMaxValue().has_value())
+                os << "max[" << t.getMaxValue().value() << "]";
+        }
+        
+        os << '>';
+    } else if (auto t = type.dyn_cast<mlir::daphne::ListType>()) {
         os << "List<" << t.getElementType() << '>';
     } else if (auto handle = llvm::dyn_cast<mlir::daphne::HandleType>(type)) {
         os << "Handle<" << handle.getDataType() << ">";
