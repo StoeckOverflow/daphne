@@ -5,7 +5,7 @@
     "resTypes": ["float"],
     "argTypes": ["DenseMatrix<float>"],
     "backend": "CPP",
-    "libPath": "/daphne/scripts/examples/extensions/myKernels/libMyKernels.so"
+    "libPath": "libMyKernels.so"
   },
   {
     "opMnemonic": "sumAll",
