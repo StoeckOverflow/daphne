@@ -1,0 +1,39 @@
+// Derived from thesis-experiment-reproduction, commit 4c0b8669.
+// Fixed data/centroids and three updates; no timing or external dependencies.
+X = [0.0, 0.0, 0.0, 2.0, 10.0, 10.0, 10.0, 12.0](4, 2);
+C = [0.0, 0.0, 10.0, 10.0, 100.0, 100.0](3, 2);
+
+// Update 1
+D = (X @ t(C)) * -2 + t(sum(C ^ 2, 0));
+minD = aggMin(D, 0);
+P = D <= minD;
+P = P / sum(P, 0);
+P_denom = sum(P, 1);
+// Keep the previous centroid for empty clusters.
+P_empty = as.f64(P_denom == 0.0);
+P_safe_denom = P_denom + P_empty;
+C = (t(P) @ X) / t(P_safe_denom) + C * t(P_empty);
+
+// Update 2
+D = (X @ t(C)) * -2 + t(sum(C ^ 2, 0));
+minD = aggMin(D, 0);
+P = D <= minD;
+P = P / sum(P, 0);
+P_denom = sum(P, 1);
+// Keep the previous centroid for empty clusters.
+P_empty = as.f64(P_denom == 0.0);
+P_safe_denom = P_denom + P_empty;
+C = (t(P) @ X) / t(P_safe_denom) + C * t(P_empty);
+
+// Update 3
+D = (X @ t(C)) * -2 + t(sum(C ^ 2, 0));
+minD = aggMin(D, 0);
+P = D <= minD;
+P = P / sum(P, 0);
+P_denom = sum(P, 1);
+// Keep the previous centroid for empty clusters.
+P_empty = as.f64(P_denom == 0.0);
+P_safe_denom = P_denom + P_empty;
+C = (t(P) @ X) / t(P_safe_denom) + C * t(P_empty);
+
+print(C);

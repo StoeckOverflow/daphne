@@ -19,6 +19,7 @@ set(TEST_SOURCES
         run_tests.h
         run_tests.cpp
 
+        api/cli/adaptive/AdaptiveAnalysisTest.cpp
         api/cli/algorithms/AlgorithmsTest.cpp
         api/cli/algorithms/DecisionTreeRandomForestTest.cpp
         api/cli/config/ConfigTest.cpp

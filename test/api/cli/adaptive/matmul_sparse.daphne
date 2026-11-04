@@ -1,0 +1,4 @@
+// Unknown input density; exactly 2 of 200 entries are nonzero.
+A = readMatrix("test/api/cli/adaptive/sparse.csv");
+B = cbind(fill(1.0, 100, 1), fill(2.0, 100, 1));
+print(A @ B);

@@ -1,0 +1,4 @@
+// Sparse lhs, but a fused rhs transpose requires the general kernel path.
+A = readMatrix("test/api/cli/adaptive/sparse.csv");
+B = rand(2, 100, 1.0, 1.0, 1.0, 42);
+print(A @ t(B));
