@@ -1,0 +1,9 @@
+// RUN: cd %S/../.. && daphne --columnar --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/join.daphne 2>&1 | FileCheck %s --check-prefix=PLAN --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// RUN: cd %S/../.. && daphne --columnar --adaptiveAnalyze=exact --explain=kernels %S/../api/cli/adaptive/join.daphne 2>&1 | FileCheck %s --check-prefix=LOWER --implicit-check-not=_analyzeData__
+
+// PLAN: "daphne.analyzeData"([[L:%[a-zA-Z0-9_]+]],
+// PLAN: "daphne.analyzeData"([[R:%[a-zA-Z0-9_]+]],
+// PLAN: "daphne.colJoin"([[L]], [[R]],
+// LOWER: callee = "_analyzeData__
+// LOWER: callee = "_analyzeData__
+// LOWER: callee = "_colJoin__

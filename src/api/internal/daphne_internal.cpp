@@ -689,9 +689,6 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
     // Create DaphneIrExecutor and get MLIR context
     // ************************************************************************
 
-    // Creates an MLIR context and loads the required MLIR dialects.
-    DaphneIrExecutor executor(selectMatrixRepr, user_config);
-
     // Load adaptive map if requested
     if(user_config.adaptiveAnalyze) {
         try {
@@ -708,7 +705,7 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
                 spdlog::warn("adaptiveAnalyze enabled but cannot open adaptive map file: {}", resolved.string());
             } else {
                 nlohmann::json j = nlohmann::json::parse(amifs);
-                std::unordered_map<std::string, std::vector<std::string>> amap;
+                decltype(user_config.adaptive_map) amap;
                 if(j.is_object()) {
                     for(auto it = j.begin(); it != j.end(); ++it) {
                         if(it.value().is_array()) {
@@ -718,26 +715,25 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
                         }
                     }
                 }
-                executor.setAdaptiveMap(std::move(amap));
+                user_config.adaptive_map = std::move(amap);
 
                 if (printAdaptiveMap) {
                     nlohmann::json out = nlohmann::json::object();
-                    for (const auto &kv : executor.getAdaptiveMap()) {
+                    for (const auto &kv : user_config.adaptive_map) {
                         out[kv.first] = kv.second;
                     }
                     std::cerr << "[adaptiveAnalyze] Loaded adaptive map from '" << resolved.string() << "': "
                               << out.dump() << std::endl;
                 }
 
-                user_config.adaptive_map.clear();
-                for (const auto &kv : executor.getAdaptiveMap()) {
-                    user_config.adaptive_map.emplace(kv.first, kv.second);
-                }
             }
         } catch(const std::exception &e) {
             spdlog::warn("Failed to load adaptive map: {}", e.what());
         }
     }
+
+    // Creates an MLIR context and loads the required MLIR dialects.
+    DaphneIrExecutor executor(selectMatrixRepr, user_config);
 
     mlir::MLIRContext *mctx = executor.getContext();
 

@@ -1,0 +1,2 @@
+A = readMatrix("test/api/cli/adaptive/sparse.csv");
+print(sum(A == 2.0));

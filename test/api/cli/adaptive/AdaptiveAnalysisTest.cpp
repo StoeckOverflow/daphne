@@ -25,13 +25,14 @@
 namespace {
 const std::string dirPath = "test/api/cli/adaptive/";
 
-void checkAdaptive(const char *script, const std::string &expected, const char *adaptivePath = nullptr) {
+template <typename... Args>
+void checkAdaptive(const char *script, const std::string &expected, const char *adaptivePath = nullptr, Args... args) {
     for (bool adaptive : {false, true}) {
         DYNAMIC_SECTION(script << (adaptive ? " exact analysis" : " default")) {
             std::stringstream out, err;
             const auto path = dirPath + script;
-            const int status = adaptive ? runDaphne(out, err, "--adaptiveAnalyze=exact", path.c_str())
-                                        : runDaphne(out, err, path.c_str());
+            const int status = adaptive ? runDaphne(out, err, "--adaptiveAnalyze=exact", args..., path.c_str())
+                                        : runDaphne(out, err, args..., path.c_str());
             INFO(err.str());
             REQUIRE(status == StatusCode::SUCCESS);
             CHECK(out.str() == expected);
@@ -60,4 +61,34 @@ TEST_CASE("Adaptive MatMul transposed", TAG_ADAPTIVE TAG_MATMUL) {
 
 TEST_CASE("Adaptive k-means empty cluster", TAG_ADAPTIVE TAG_ALGORITHMS) {
     checkAdaptive("kmeans_empty_cluster.daphne", "DenseMatrix(3x2, double)\n0 1\n10 11\n100 100\n");
+}
+
+TEST_CASE("Adaptive MatMul known density", TAG_ADAPTIVE TAG_MATMUL) {
+    checkAdaptive("matmul_known_density.daphne", "DenseMatrix(2x2, double)\n100 100\n100 100\n", "dense-blas");
+}
+
+TEST_CASE("Adaptive MatMul across branches", TAG_ADAPTIVE TAG_MATMUL) {
+    checkAdaptive("matmul_branch.daphne", "DenseMatrix(2x2, double)\n2 2\n3 3\nDenseMatrix(2x2, double)\n2 2\n3 3\n",
+                  "sparse-aware");
+}
+
+TEST_CASE("Adaptive analysis FileCheck", TAG_ADAPTIVE TAG_MATMUL) {
+    std::stringstream out, err;
+    const int status = runLIT(out, err, "test/util/", "--filter=adaptive_");
+    INFO(out.str());
+    INFO(err.str());
+    CHECK(status == StatusCode::SUCCESS);
+}
+
+TEST_CASE("Adaptive comparison", TAG_ADAPTIVE TAG_OPERATIONS) {
+    checkAdaptive("comparison.daphne", "1\n");
+    checkAdaptive("comparison.daphne", "1\n", nullptr, "--vec-restricted");
+}
+
+TEST_CASE("Adaptive map", TAG_ADAPTIVE TAG_SECONDORDER) {
+    checkAdaptive("map.daphne", "10\n");
+}
+
+TEST_CASE("Adaptive columnar join", TAG_ADAPTIVE TAG_SQL) {
+    checkAdaptive("join.daphne", "Frame(2x2, [a.value:int64_t, b.value:int64_t])\n20 40\n30 50\n", nullptr, "--columnar");
 }

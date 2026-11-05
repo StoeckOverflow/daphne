@@ -1,0 +1,9 @@
+A = readMatrix("test/api/cli/adaptive/sparse.csv");
+B = fill(1.0, 100, 2);
+// Runtime predicate keeps both branches in the IR; this fixture takes the else branch.
+if (sum(A) < 0.0) {
+    print(A @ B);
+} else {
+    print(A @ B);
+}
+print(A @ B);

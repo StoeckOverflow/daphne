@@ -109,14 +109,6 @@ bool DaphneIrExecutor::runPasses(mlir::ModuleOp module) {
     if (!module)
         return false;
 
-    // Ensure userConfig_ carries the adaptive map loaded earlier (if any),
-    // so that passes can access it via the config reference.
-    if (!adaptiveMap_.empty()) {
-        userConfig_.adaptive_map.clear();
-        for (const auto &kv : adaptiveMap_)
-            userConfig_.adaptive_map.emplace(kv.first, kv.second);
-    }
-
     // This flag is really useful to figure out why the lowering failed
     llvm::DebugFlag = userConfig_.debug_llvm;
 
@@ -183,8 +175,8 @@ bool DaphneIrExecutor::runPasses(mlir::ModuleOp module) {
     if (userConfig_.explain_select_matrix_repr)
         pm.addPass(mlir::daphne::createPrintIRPass("IR after selecting matrix representations:"));
 
-    pm.addNestedPass<mlir::func::FuncOp>(mlir::daphne::createTransferDataPropertiesPass(userConfig_));
-    pm.addNestedPass<mlir::func::FuncOp>(mlir::daphne::createAdaptiveAnalyzePropertiesPass(userConfig_, usedLibPaths));
+    pm.addNestedPass<mlir::func::FuncOp>(mlir::daphne::createTransferDataPropertiesPass());
+    pm.addNestedPass<mlir::func::FuncOp>(mlir::daphne::createAdaptiveAnalyzePropertiesPass(userConfig_));
     if (userConfig_.explain_transfer_data_props)
         pm.addPass(mlir::daphne::createPrintIRPass("IR after transferring data properties:"));
 

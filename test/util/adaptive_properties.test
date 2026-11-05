@@ -1,0 +1,14 @@
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --print-adaptive-map --adaptive-map-file=%S/../api/cli/adaptive/matmul_properties.json --explain=kernels %S/../api/cli/adaptive/matmul_sparse.daphne 2>&1 | FileCheck %s --implicit-check-not=_analyzeData__
+
+// JSON requests min/max and distinct counts, not density. Check both runtime requests.
+// CHECK: [adaptiveAnalyze] Loaded adaptive map from
+// CHECK-SAME: {"matMul":["minmax","distinct"]}
+// CHECK-LABEL: IR after kernel lowering:
+// CHECK-DAG: [[FALSE:%[a-zA-Z0-9_]+]] = "daphne.constant"() {value = false} : () -> i1
+// CHECK-DAG: [[TRUE:%[a-zA-Z0-9_]+]] = "daphne.constant"() {value = true} : () -> i1
+// CHECK: "daphne.call_kernel"([[LHS:%[a-zA-Z0-9_]+]], [[FALSE]], [[FALSE]], [[FALSE]], [[TRUE]], [[TRUE]], [[FALSE]],{{.*}}callee = "_analyzeData__
+// CHECK: "daphne.call_kernel"([[RHS:%[a-zA-Z0-9_]+]], [[FALSE]], [[FALSE]], [[FALSE]], [[TRUE]], [[TRUE]], [[FALSE]],{{.*}}callee = "_analyzeData__
+// CHECK: "daphne.call_kernel"([[LHS]], [[RHS]],{{.*}}callee = "_matMul__
+// CHECK: DenseMatrix(2x2, double)
+// CHECK-NEXT: 2 4
+// CHECK-NEXT: 3 6

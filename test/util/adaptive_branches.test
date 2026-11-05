@@ -1,0 +1,28 @@
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/matmul_branch.daphne 2>&1 | FileCheck %s --check-prefix=PLAN --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=kernels %S/../api/cli/adaptive/matmul_branch.daphne 2>&1 | FileCheck %s --check-prefix=LOWER --implicit-check-not=_analyzeData__
+
+// Each branch and the following consumer need their own requests.
+// PLAN-LABEL: IR after transferring data properties:
+// PLAN: "scf.if"
+// PLAN: "daphne.analyzeData"([[L0:%[a-zA-Z0-9_]+]],
+// PLAN: "daphne.analyzeData"([[R0:%[a-zA-Z0-9_]+]],
+// PLAN: "daphne.matMul"([[L0]], [[R0]],
+// PLAN: }, {
+// PLAN: "daphne.analyzeData"([[L1:%[a-zA-Z0-9_]+]],
+// PLAN: "daphne.analyzeData"([[R1:%[a-zA-Z0-9_]+]],
+// PLAN: "daphne.matMul"([[L1]], [[R1]],
+// PLAN: }) : (i1) -> ()
+// PLAN: "daphne.analyzeData"([[L2:%[a-zA-Z0-9_]+]],
+// PLAN: "daphne.analyzeData"([[R2:%[a-zA-Z0-9_]+]],
+// PLAN: "daphne.matMul"([[L2]], [[R2]],
+
+// LOWER-LABEL: IR after kernel lowering:
+// LOWER: callee = "_analyzeData__
+// LOWER: callee = "_analyzeData__
+// LOWER: callee = "_matMul__
+// LOWER: callee = "_analyzeData__
+// LOWER: callee = "_analyzeData__
+// LOWER: callee = "_matMul__
+// LOWER: callee = "_analyzeData__
+// LOWER: callee = "_analyzeData__
+// LOWER: callee = "_matMul__

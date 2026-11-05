@@ -1,0 +1,28 @@
+// RUN: cd %S/../.. && daphne --vec-restricted --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/comparison.daphne 2>&1 | FileCheck %s --check-prefix=EXACT --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// RUN: cd %S/../.. && daphne --vec-restricted --adaptiveAnalyze=exact --explain=kernels %S/../api/cli/adaptive/comparison.daphne 2>&1 | FileCheck %s --check-prefix=EXACT-LOWER --implicit-check-not=_analyzeData__
+
+// EXACT: "daphne.minAll"([[INPUT:%[a-zA-Z0-9_]+]]) {vec = true}
+// EXACT: "daphne.maxAll"([[INPUT]]) {vec = true}
+// EXACT: "daphne.transferProperties"([[INPUT]],
+// EXACT: "daphne.ewEq"([[INPUT]],
+// EXACT-LOWER-DAG: [[NO:%[a-zA-Z0-9_]+]] = "daphne.constant"() {value = false}
+// EXACT-LOWER-DAG: [[YES:%[a-zA-Z0-9_]+]] = "daphne.constant"() {value = true}
+// EXACT-LOWER: callee = "_minAll__
+// EXACT-LOWER: callee = "_maxAll__
+// EXACT-LOWER: "daphne.call_kernel"({{[^,]+}}, [[NO]], {{[^,]+}}, [[NO]], {{[^,]+}}, [[NO]], {{[^,]+}}, [[YES]], {{[^,]+}}, [[YES]], {{[^,]+}}, [[NO]], {{[^,]+}}, [[NO]], {{[^,]+}},{{.*}}callee = "_transferProperties__
+// EXACT-LOWER: callee = "_ewEq__
+
+// RUN: cd %S/../.. && daphne --vec-restricted --adaptiveAnalyze=simd --explain=transfer_data_props %S/../api/cli/adaptive/comparison.daphne 2>&1 | FileCheck %s --check-prefix=SIMD --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// RUN: cd %S/../.. && daphne --vec-restricted --adaptiveAnalyze=simd --explain=kernels %S/../api/cli/adaptive/comparison.daphne 2>&1 | FileCheck %s --check-prefix=SIMD-LOWER --implicit-check-not=_analyzeData__
+
+// SIMD: "daphne.minAllSimd"([[INPUT:%[a-zA-Z0-9_]+]]) {vec = true}
+// SIMD: "daphne.maxAllSimd"([[INPUT]]) {vec = true}
+// SIMD: "daphne.transferProperties"([[INPUT]],
+// SIMD: "daphne.ewEq"([[INPUT]],
+// SIMD-LOWER-DAG: [[NO:%[a-zA-Z0-9_]+]] = "daphne.constant"() {value = false}
+// SIMD-LOWER-DAG: [[YES:%[a-zA-Z0-9_]+]] = "daphne.constant"() {value = true}
+// SIMD-LOWER: callee = "_minAllSimd__
+// SIMD-LOWER: callee = "_maxAllSimd__
+// SIMD-LOWER: "daphne.call_kernel"({{[^,]+}}, [[NO]], {{[^,]+}}, [[NO]], {{[^,]+}}, [[NO]], {{[^,]+}}, [[YES]], {{[^,]+}}, [[YES]], {{[^,]+}}, [[NO]], {{[^,]+}}, [[NO]], {{[^,]+}},{{.*}}callee = "_transferProperties__
+// SIMD-LOWER: callee = "_ewEq__
+

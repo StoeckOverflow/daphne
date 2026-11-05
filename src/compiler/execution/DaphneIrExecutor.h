@@ -55,19 +55,5 @@ class DaphneIrExecutor {
      */
     std::unordered_map<std::string, bool> usedLibPaths;
     
-    // Map from kernel name to list of properties to analyze
-    std::unordered_map<std::string, std::vector<std::string>> adaptiveMap_;
-
     void buildCodegenPipeline(mlir::PassManager &);
-    
-  public:
-    // Get the adaptive map
-    const std::unordered_map<std::string, std::vector<std::string>>& getAdaptiveMap() const { 
-        return adaptiveMap_; 
-    }
-    
-    // Set the adaptive map
-    void setAdaptiveMap(std::unordered_map<std::string, std::vector<std::string>> m) { 
-        adaptiveMap_ = m;
-    }
 };

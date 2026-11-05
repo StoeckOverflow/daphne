@@ -1,0 +1,6 @@
+A = createFrame([1, 2, 3], [10, 20, 30], "key", "value");
+B = createFrame([2, 3, 4], [40, 50, 60], "key", "value");
+registerView("a", A);
+registerView("b", B);
+C = sql("SELECT a.value, b.value FROM a JOIN b ON a.key = b.key;");
+print(C);
