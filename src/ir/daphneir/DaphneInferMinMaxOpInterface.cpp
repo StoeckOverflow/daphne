@@ -49,7 +49,7 @@ std::vector<std::pair<std::optional<double>, std::optional<double>>> daphne::Fil
 
 std::vector<std::pair<std::optional<double>, std::optional<double>>> daphne::OrderOp::inferMinMax() {
     // Ordering does not change the set of values; propagate input min/max if known
-    auto mt = getArg().getType().dyn_cast<daphne::MatrixType>();
+    auto mt = ::mlir::dyn_cast<daphne::MatrixType>(getArg().getType());
     if (!mt)
         return {{std::nullopt, std::nullopt}};
     return {{mt.getMinValue(), mt.getMaxValue()}};
@@ -57,7 +57,7 @@ std::vector<std::pair<std::optional<double>, std::optional<double>>> daphne::Ord
 
 std::vector<std::pair<std::optional<double>, std::optional<double>>> daphne::EwLtOp::inferMinMax() {
     // Element-wise less-than with scalar RHS produces boolean 0/1
-    auto lhsMatrix = getOperand(0).getType().dyn_cast<daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getOperand(0).getType());
     auto rhsC = CompilerUtils::isConstant<double>(getOperand(1));
     if (!lhsMatrix || !rhsC.first)
         return {{std::nullopt, std::nullopt}};
@@ -79,7 +79,7 @@ std::vector<std::pair<std::optional<double>, std::optional<double>>> daphne::EwL
 
 std::vector<std::pair<std::optional<double>, std::optional<double>>> daphne::EwNeqOp::inferMinMax() {
     // Element-wise not-equal with scalar RHS produces boolean 0/1
-    auto lhsMatrix = getOperand(0).getType().dyn_cast<daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getOperand(0).getType());
     auto rhsC = CompilerUtils::isConstant<double>(getOperand(1));
     if (!lhsMatrix || !rhsC.first)
         return {{std::nullopt, std::nullopt}};

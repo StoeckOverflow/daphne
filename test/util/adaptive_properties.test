@@ -4,8 +4,8 @@
 // CHECK: [adaptiveAnalyze] Loaded adaptive map from
 // CHECK-SAME: {"matMul":["minmax","distinct"]}
 // CHECK-LABEL: IR after kernel lowering:
-// CHECK-DAG: [[FALSE:%[a-zA-Z0-9_]+]] = "daphne.constant"() {value = false} : () -> i1
-// CHECK-DAG: [[TRUE:%[a-zA-Z0-9_]+]] = "daphne.constant"() {value = true} : () -> i1
+// CHECK-DAG: [[FALSE:%[a-zA-Z0-9_]+]] = "daphne.constant"() <{value = false}> : () -> i1
+// CHECK-DAG: [[TRUE:%[a-zA-Z0-9_]+]] = "daphne.constant"() <{value = true}> : () -> i1
 // CHECK: "daphne.call_kernel"([[LHS:%[a-zA-Z0-9_]+]], [[FALSE]], [[FALSE]], [[FALSE]], [[TRUE]], [[TRUE]], [[FALSE]],{{.*}}callee = "_analyzeData__
 // CHECK: "daphne.call_kernel"([[RHS:%[a-zA-Z0-9_]+]], [[FALSE]], [[FALSE]], [[FALSE]], [[TRUE]], [[TRUE]], [[FALSE]],{{.*}}callee = "_analyzeData__
 // CHECK: "daphne.call_kernel"([[LHS]], [[RHS]],{{.*}}callee = "_matMul__

@@ -71,7 +71,7 @@ std::vector<ssize_t> daphne::DiagMatrixOp::inferSparsityPattern() {
 
 // Element-wise unary operations that preserve sparsity pattern
 std::vector<ssize_t> daphne::EwSqrtOp::inferSparsityPattern() {
-    auto inputMatrix = getArg().getType().dyn_cast<daphne::MatrixType>();
+    auto inputMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getArg().getType());
     if (!inputMatrix)
         return {PATTERN_ID_UNKNOWN};
 
@@ -79,7 +79,7 @@ std::vector<ssize_t> daphne::EwSqrtOp::inferSparsityPattern() {
 }
 
 std::vector<ssize_t> daphne::EwLnOp::inferSparsityPattern() {
-    auto inputMatrix = getArg().getType().dyn_cast<daphne::MatrixType>();
+    auto inputMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getArg().getType());
     if (!inputMatrix)
         return {PATTERN_ID_UNKNOWN};
 
@@ -87,7 +87,7 @@ std::vector<ssize_t> daphne::EwLnOp::inferSparsityPattern() {
 }
 
 std::vector<ssize_t> daphne::EwAbsOp::inferSparsityPattern() {
-    auto inputMatrix = getArg().getType().dyn_cast<daphne::MatrixType>();
+    auto inputMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getArg().getType());
     if (!inputMatrix)
         return {PATTERN_ID_UNKNOWN};
     
@@ -99,8 +99,8 @@ std::vector<ssize_t> daphne::EwAbsOp::inferSparsityPattern() {
 // ****************************************************************************
 
 std::vector<ssize_t> daphne::EwAddOp::inferSparsityPattern() {
-    auto lhsMatrix = getLhs().getType().dyn_cast<daphne::MatrixType>();
-    auto rhsMatrix = getRhs().getType().dyn_cast<daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getLhs().getType());
+    auto rhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getRhs().getType());
     
     if (!lhsMatrix || !rhsMatrix)
         return {PATTERN_ID_UNKNOWN};
@@ -117,8 +117,8 @@ std::vector<ssize_t> daphne::EwAddOp::inferSparsityPattern() {
 }
 
 std::vector<ssize_t> daphne::EwSubOp::inferSparsityPattern() {
-    auto lhsMatrix = getLhs().getType().dyn_cast<daphne::MatrixType>();
-    auto rhsMatrix = getRhs().getType().dyn_cast<daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getLhs().getType());
+    auto rhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getRhs().getType());
 
     if (!lhsMatrix || !rhsMatrix)
         return {PATTERN_ID_UNKNOWN};
@@ -135,8 +135,8 @@ std::vector<ssize_t> daphne::EwSubOp::inferSparsityPattern() {
 }
 
 std::vector<ssize_t> daphne::EwMulOp::inferSparsityPattern() {
-    auto lhsMatrix = getLhs().getType().dyn_cast<daphne::MatrixType>();
-    auto rhsMatrix = getRhs().getType().dyn_cast<daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getLhs().getType());
+    auto rhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getRhs().getType());
 
     if (!lhsMatrix || !rhsMatrix)
         return {PATTERN_ID_UNKNOWN};

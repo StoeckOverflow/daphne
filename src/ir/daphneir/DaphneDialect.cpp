@@ -322,7 +322,7 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         } else
             os << '?';
         os << '>';
-    } else if (auto t = type.dyn_cast<mlir::daphne::ColumnType>()) {
+    } else if (auto t = ::mlir::dyn_cast<mlir::daphne::ColumnType>(type)) {
         os << "Column<" << unknownStrIf(t.getNumRows()) << "x" << t.getValueType();
         
         // Print min/max values if available
@@ -335,7 +335,7 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         }
         
         os << '>';
-    } else if (auto t = type.dyn_cast<mlir::daphne::ListType>()) {
+    } else if (auto t = ::mlir::dyn_cast<mlir::daphne::ListType>(type)) {
         os << "List<" << t.getElementType() << '>';
     } else if (auto handle = llvm::dyn_cast<mlir::daphne::HandleType>(type)) {
         os << "Handle<" << handle.getDataType() << ">";

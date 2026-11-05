@@ -1385,17 +1385,6 @@ antlrcpp::Any DaphneDSLBuiltins::build(mlir::Location loc, const std::string &fu
         return builder.create<StopOp>(loc, message).getOperation();
     }
 
-    if (func == "startProfiling") {
-        checkNumArgsExact(loc, func, numArgs, 1);
-        mlir::Value regionName = args[0];
-        return builder.create<StartProfilingOp>(loc, regionName).getOperation();
-    }
-    if (func == "stopProfiling") {
-        checkNumArgsExact(loc, func, numArgs, 1);
-        mlir::Value regionName = args[0];
-        return builder.create<StopProfilingOp>(loc, regionName).getOperation();
-    }
-
     if (func == "analyzeData") {
         checkNumArgsBetween(loc, func, numArgs, 7, 7);
         mlir::Value arg = args[0];
@@ -1409,6 +1398,17 @@ antlrcpp::Any DaphneDSLBuiltins::build(mlir::Location loc, const std::string &fu
         return builder.create<AnalyzeDataOp>(loc, arg, analyzeSparsity, analyzeSymmetric, analyzeSortness, analyzeMinMax, analyzeDistinct, analyzeSparsityPattern).getOperation();
     }
     
+    if (func == "startProfiling") {
+        checkNumArgsExact(loc, func, numArgs, 1);
+        mlir::Value regionName = args[0];
+        return builder.create<StartProfilingOp>(loc, regionName).getOperation();
+    }
+    if (func == "stopProfiling") {
+        checkNumArgsExact(loc, func, numArgs, 1);
+        mlir::Value regionName = args[0];
+        return builder.create<StopProfilingOp>(loc, regionName).getOperation();
+    }
+
     // --------------------------------------------------------------------
     // Low-level
     // --------------------------------------------------------------------

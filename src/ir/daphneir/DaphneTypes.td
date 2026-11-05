@@ -71,7 +71,7 @@ def Matrix : Daphne_Type<"Matrix"> {
         // Creates a MatrixType from mere element type information, with all
         // other parameters reset.
         TypeBuilder<(ins "::mlir::Type":$elementType), [{
-            return Base::get($_ctxt, elementType, -1, -1, -1.0, MatrixRepresentation::Default, BoolOrUnknown::Unknown,
+            return Base::get($_ctxt, elementType, -1, -1, -1.0, ::mlir::daphne::MatrixRepresentation::Default, ::mlir::daphne::BoolOrUnknown::Unknown,
             MatrixSortness::Unknown, std::nullopt, std::nullopt, -1, -1);
         }]>,
     ];
@@ -125,7 +125,7 @@ def Matrix : Daphne_Type<"Matrix"> {
         }
 
         ::mlir::daphne::MatrixType withSameElementTypeAndRepr() {
-            return get(getContext(), getElementType(), -1, -1, -1.0, getRepresentation(), BoolOrUnknown::Unknown, MatrixSortness::Unknown, std::nullopt, std::nullopt, -1, -1) ;
+            return get(getContext(), getElementType(), -1, -1, -1.0, getRepresentation(), ::mlir::daphne::BoolOrUnknown::Unknown, MatrixSortness::Unknown, std::nullopt, std::nullopt, -1, -1) ;
         }
 
         /**
@@ -341,7 +341,7 @@ class ColumnOf<list<Type> allowedTypes> : AnyTypeOf<[
         ContainerType<
                 AnyTypeOf<!listconcat(allowedTypes, [Unknown])>,
                 Column.predicate,
-                "$_self.dyn_cast<::mlir::daphne::ColumnType>().getValueType()",
+                "::mlir::dyn_cast<::mlir::daphne::ColumnType>($_self).getValueType()",
                 "column"
         >,
         Unknown

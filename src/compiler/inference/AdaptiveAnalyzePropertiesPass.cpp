@@ -108,14 +108,14 @@ void AdaptiveAnalyzePropertiesPass::processBlock(OpBuilder &builder, Block *b) {
             const PropertySet request = parseProperties(it->second);
             SmallVector<Value> inputsToAnalyze;
             for (Value input : op.getOperands())
-                if (input.getType().isa<daphne::MatrixType, daphne::FrameType, daphne::ColumnType>())
+                if (::mlir::isa<daphne::MatrixType, daphne::FrameType, daphne::ColumnType>(input.getType()))
                     inputsToAnalyze.push_back(input);
 
             // Each consumer gets a local request; do not reuse across branches.
             for (Value input : inputsToAnalyze) {
                 builder.setInsertionPoint(&op);
                 auto remaining = request;
-                auto mt = input.getType().dyn_cast<daphne::MatrixType>();
+                auto mt = ::mlir::dyn_cast<daphne::MatrixType>(input.getType());
                 if (userConfig.use_vectorized_restricted && remaining.contains(Property::MinMax) && mt) {
                     if (!mt.getMinValue().has_value() || !mt.getMaxValue().has_value())
                         acquireBounds(builder, op.getLoc(), input);
@@ -132,7 +132,7 @@ void AdaptiveAnalyzePropertiesPass::processBlock(OpBuilder &builder, Block *b) {
 }
 
 void AdaptiveAnalyzePropertiesPass::acquireBounds(OpBuilder &builder, Location loc, Value input) {
-    Type scalarTy = input.getType().cast<daphne::MatrixType>().getElementType();
+    Type scalarTy = ::mlir::cast<daphne::MatrixType>(input.getType()).getElementType();
     Value min, max;
     if (userConfig.adaptiveAnalyzeMode == DaphneUserConfig::AdaptiveAnalyzeMode::Simd) {
         min = builder.create<daphne::MinAllSimdOp>(loc, scalarTy, input);

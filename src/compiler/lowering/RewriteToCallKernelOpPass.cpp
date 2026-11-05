@@ -380,7 +380,6 @@ class KernelReplacement : public RewritePattern {
 
         const KernelCatalog &kc = userConfig.kernelCatalog;
         const std::string opMnemonic = op->getName().stripDialect().data();
-
         std::vector<KernelInfo> kernelInfos = kc.getKernelInfos(opMnemonic);
 
         std::string libPath;

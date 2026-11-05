@@ -59,6 +59,10 @@ add_mlir_dialect_library(MLIRDaphne
     MLIRDaphneOpsIncGen
     MLIRDaphneTransformsIncGen
     MLIRDaphneDistributableOpInterfaceIncGen
+    MLIRDaphneInferDistinctOpInterfaceIncGen
+    MLIRDaphneInferMinMaxOpInterfaceIncGen
+    MLIRDaphneInferSortnessOpInterfaceIncGen
+    MLIRDaphneInferSparsityPatternOpInterfaceIncGen
     MLIRDaphneInferFrameLabelsOpInterfaceIncGen
     MLIRDaphneInferSymmetricOpInterfaceIncGen
     MLIRDaphneInferShapeOpInterfaceIncGen

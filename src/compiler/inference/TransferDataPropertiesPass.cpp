@@ -54,7 +54,7 @@ void TransferDataPropertiesPass::processBlock(OpBuilder builder, Block *b) {
 
         for (Value v : op.getResults()) {
             Type t = v.getType();
-            auto mt = t.dyn_cast<daphne::MatrixType>();
+            auto mt = ::mlir::dyn_cast<daphne::MatrixType>(t);
             if (!mt)
                 continue;
 

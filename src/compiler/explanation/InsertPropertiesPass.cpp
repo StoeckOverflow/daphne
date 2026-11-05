@@ -97,7 +97,7 @@ void InsertPropertiesPass::runOnOperation() {
             Value res = op->getResult(i);
             nlohmann::json &prop = properties[propertyIndex].properties;
             
-            auto mt = res.getType().dyn_cast<daphne::MatrixType>();
+            auto mt = ::mlir::dyn_cast<daphne::MatrixType>(res.getType());
             if (!mt)
                 continue;
             

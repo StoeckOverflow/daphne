@@ -154,7 +154,7 @@ class ConstantOpLowering : public OpConversionPattern<daphne::ConstantOp> {
             if (auto iTy = llvm::dyn_cast<IntegerType>(op.getType())) {
                 auto ty = IntegerType::get(getContext(), iTy.getWidth());
                 rewriter.replaceOpWithNewOp<arith::ConstantOp>(
-                    op.getOperation(), ty, IntegerAttr::get(ty, op.getValue().cast<IntegerAttr>().getValue()));
+                    op.getOperation(), ty, IntegerAttr::get(ty, ::mlir::cast<IntegerAttr>(op.getValue()).getValue()));
             } else {
                 rewriter.replaceOpWithNewOp<arith::ConstantOp>(op.getOperation(), op.getValue());
             }

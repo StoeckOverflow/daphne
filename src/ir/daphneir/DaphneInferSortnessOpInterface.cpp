@@ -32,7 +32,7 @@ using namespace mlir::OpTrait;
 // ****************************************************************************
 
 std::vector<MatrixSortness> daphne::OrderOp::inferSortness() {
-    auto matrixOperand = getOperand(0).getType().dyn_cast<daphne::MatrixType>();
+    auto matrixOperand = ::mlir::dyn_cast<daphne::MatrixType>(getOperand(0).getType());
 
     if (!matrixOperand) {
         return {MatrixSortness::Unknown};
@@ -54,7 +54,7 @@ std::vector<MatrixSortness> daphne::OrderOp::inferSortness() {
 }
 
 std::vector<MatrixSortness> daphne::EwLtOp::inferSortness() {
-    auto lhsMatrix = getOperand(0).getType().dyn_cast<daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getOperand(0).getType());
     std::pair<bool, ssize_t> rhsScalar = CompilerUtils::isConstant<ssize_t>(getOperand(1));
     
     if (!lhsMatrix || !rhsScalar.first) {
@@ -86,8 +86,8 @@ std::vector<MatrixSortness> daphne::EwLtOp::inferSortness() {
 
 std::vector<MatrixSortness> daphne::EwAddOp::inferSortness() {
 
-    auto lhsMatrix = getOperand(0).getType().dyn_cast<daphne::MatrixType>();
-    auto rhsMatrix = getOperand(1).getType().dyn_cast<daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getOperand(0).getType());
+    auto rhsMatrix = ::mlir::dyn_cast<daphne::MatrixType>(getOperand(1).getType());
 
     if (!lhsMatrix || !rhsMatrix) {
         return {MatrixSortness::Unknown};

@@ -836,7 +836,7 @@ mlir::LogicalResult mlir::daphne::EwLtOp::canonicalize(mlir::daphne::EwLtOp op, 
     mlir::Value rhs = op.getRhs();
 
     // Only handle matrix < scalar
-    auto lhsMatrix = lhs.getType().dyn_cast<mlir::daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<mlir::daphne::MatrixType>(lhs.getType());
     std::pair<bool, ssize_t> rhsConst = CompilerUtils::isConstant<ssize_t>(rhs);
     if (!lhsMatrix || !rhsConst.first)
         return mlir::failure();
@@ -880,7 +880,7 @@ mlir::LogicalResult mlir::daphne::EwNeqOp::canonicalize(mlir::daphne::EwNeqOp op
     mlir::Value lhs = op.getLhs();
     mlir::Value rhs = op.getRhs();
 
-    auto lhsMatrix = lhs.getType().dyn_cast<mlir::daphne::MatrixType>();
+    auto lhsMatrix = ::mlir::dyn_cast<mlir::daphne::MatrixType>(lhs.getType());
     std::pair<bool, ssize_t> rhsConst = CompilerUtils::isConstant<ssize_t>(rhs);
     if (!lhsMatrix || !rhsConst.first)
         return mlir::failure();

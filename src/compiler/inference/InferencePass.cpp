@@ -303,7 +303,7 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
                     if (llvm::isa<mlir::daphne::MatrixType>(op->getResultTypes()[i])) {
                         Value rv = op->getResult(i);
                         const Type rt = rv.getType();
-                        if (auto mt = rt.dyn_cast<daphne::MatrixType>())
+                        if (auto mt = ::mlir::dyn_cast<daphne::MatrixType>(rt))
                             rv.setType(mt.withSortness(sortness));
                     }
                 }
@@ -326,7 +326,7 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
 
                         Value rv = op->getResult(i);
                         const Type rt = rv.getType();
-                        if (auto mt = rt.dyn_cast<daphne::MatrixType>())
+                        if (auto mt = ::mlir::dyn_cast<daphne::MatrixType>(rt))
                             rv.setType(mt.withMinMax(minValue, maxValue));
                     }
                 }
@@ -348,7 +348,7 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
 
                         Value rv = op->getResult(i);
                         const Type rt = rv.getType();
-                        if (auto mt = rt.dyn_cast<daphne::MatrixType>())
+                        if (auto mt = ::mlir::dyn_cast<daphne::MatrixType>(rt))
                             rv.setType(mt.withDistinct(distinct));
                     }
                 }
@@ -370,7 +370,7 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
 
                         Value rv = op->getResult(i);
                         const Type rt = rv.getType();
-                        if (auto mt = rt.dyn_cast<daphne::MatrixType>())
+                        if (auto mt = ::mlir::dyn_cast<daphne::MatrixType>(rt))
                             rv.setType(mt.withSparsityPatternID(sparsityPatternID));
                     }
                 }
@@ -658,7 +658,7 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
 
     static bool returnsUnknownSortness(Operation *op) {
         return llvm::any_of(op->getResultTypes(), [](Type rt) {
-            if (auto mt = rt.dyn_cast<daphne::MatrixType>())
+            if (auto mt = ::mlir::dyn_cast<daphne::MatrixType>(rt))
                 return mt.getSortness() == MatrixSortness::Unknown;
             return false;
         });
@@ -666,7 +666,7 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
 
     static bool returnsUnknownMinMax(Operation *op) {
         return llvm::any_of(op->getResultTypes(), [](Type rt) {
-            if (auto mt = rt.dyn_cast<daphne::MatrixType>())
+            if (auto mt = ::mlir::dyn_cast<daphne::MatrixType>(rt))
                 return !mt.getMinValue().has_value() || !mt.getMaxValue().has_value();
             return false;
         });
@@ -674,7 +674,7 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
 
     static bool returnsUnknownDistinct(Operation *op) {
         return llvm::any_of(op->getResultTypes(), [](Type rt) {
-            if (auto mt = rt.dyn_cast<daphne::MatrixType>())
+            if (auto mt = ::mlir::dyn_cast<daphne::MatrixType>(rt))
                 return mt.getDistinct() == -1;
             return false;
         });
@@ -682,7 +682,7 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
 
     static bool returnsUnknownSparsityPattern(Operation *op) {
         return llvm::any_of(op->getResultTypes(), [](Type rt) {
-            if (auto mt = rt.dyn_cast<daphne::MatrixType>())
+            if (auto mt = ::mlir::dyn_cast<daphne::MatrixType>(rt))
                 return mt.getSparsityPatternID() == -1;
             return false;
         });
