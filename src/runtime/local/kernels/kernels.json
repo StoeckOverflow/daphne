@@ -8085,7 +8085,7 @@
     },
     {
         "kernelTemplate": {
-            "header": "MinAllSimd.h",
+            "header": "experimental/MinAllSimd.h",
             "opName": "minAllSimd",
             "returnType": "VTRes",
             "templateParams": [
@@ -8112,7 +8112,7 @@
     },
     {
         "kernelTemplate": {
-            "header": "MaxAllSimd.h",
+            "header": "experimental/MaxAllSimd.h",
             "opName": "maxAllSimd",
             "returnType": "VTRes",
             "templateParams": [

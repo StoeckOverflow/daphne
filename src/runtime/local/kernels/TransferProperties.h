@@ -29,8 +29,8 @@
 #include <runtime/local/kernels/AggOpCode.h>
 #include <runtime/local/kernels/NumDistinctCount.h>
 #include <runtime/local/kernels/NumDistinctApprox.h>
-#include <runtime/local/kernels/MinAllSimd.h>
-#include <runtime/local/kernels/MaxAllSimd.h>
+#include <runtime/local/kernels/experimental/MinAllSimd.h>
+#include <runtime/local/kernels/experimental/MaxAllSimd.h>
 
 #include <algorithm>
 #include <chrono>
