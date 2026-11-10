@@ -273,7 +273,7 @@ template <typename VT> struct AnalyzeProperties<Column<VT>> {
 
                             // SIMD main loop - use comparison and blend for int64 min/max
                             for (size_t i = 0; i < simdIterations; i++) {
-                                __m256i dataVec = _mm256_loadu_si256((__m256i *)&values[i * simdWidth]);
+                                __m256i dataVec = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&values[i * simdWidth]));
 
                                 // Min: if data < min, use data, else use min
                                 __m256i cmpMin = _mm256_cmpgt_epi64(minVec, dataVec);

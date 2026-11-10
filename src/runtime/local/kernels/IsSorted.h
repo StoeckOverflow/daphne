@@ -45,7 +45,6 @@ template<typename VT>
 struct IsSorted<DenseMatrix<VT>> {
     static int64_t apply(const DenseMatrix<VT> *arg, DCTX(ctx)) {
         const size_t numRows = arg->getNumRows();
-        const size_t numCols = arg->getNumCols();
         
         // Handle empty or single-element cases
         if(numRows <= 1)

@@ -63,7 +63,6 @@ private:
                               const VTData *valuesLhsData, const VTData *valuesRhsData,
                               size_t numLhsData, size_t numRhsData,
                               VTData rhsMin, VTData rhsMax, DCTX(ctx)) {
-        auto buildStart = std::chrono::steady_clock::now();
         
         // Build phase - use narrow key type for hash table
         absl::flat_hash_map<VTKeyInternal, VTPos> ht;
@@ -73,14 +72,9 @@ private:
             for (size_t r = 0; r < numRhsData; r++) {
                 ht[valuesRhsData[r]] = static_cast<VTPos>(r);
             }
-            
-            auto probeStart = std::chrono::steady_clock::now();
-            double buildTime = std::chrono::duration<double>(probeStart - buildStart).count();
 
             size_t posRes = 0;
-            size_t lookupCount = 0;
             for (size_t r = 0; r < numLhsData; r++) {
-                lookupCount++;
                 auto it = ht.find(valuesLhsData[r]);
                 if (it != ht.end()) {
                     valuesResLhsPos[posRes] = static_cast<VTPos>(r);
@@ -88,10 +82,7 @@ private:
                     posRes++;
                 }
             }
-            
-            auto probeEnd = std::chrono::steady_clock::now();
-            double probeTime = std::chrono::duration<double>(probeEnd - probeStart).count();
-            
+
             return posRes;
         } else {
             // Use offset transformation for narrower key types
@@ -99,9 +90,6 @@ private:
                 VTKeyInternal key = static_cast<VTKeyInternal>(valuesRhsData[r] - rhsMin);
                 ht[key] = static_cast<VTPos>(r);
             }
-            
-            auto probeStart = std::chrono::steady_clock::now();
-            double buildTime = std::chrono::duration<double>(probeStart - buildStart).count();
 
             // Probe phase - convert keys on-the-fly
             size_t posRes = 0;
@@ -123,8 +111,6 @@ private:
                 }
             }
             
-            auto probeEnd = std::chrono::steady_clock::now();
-            double probeTime = std::chrono::duration<double>(probeEnd - probeStart).count();
             double filterRate = (rangeCheckCount - lookupCount) * 100.0 / rangeCheckCount;
             if (ctx && ctx->getUserConfig().enable_statistics)
                 std::cerr << "  [filtered " << std::fixed << std::setprecision(1)
