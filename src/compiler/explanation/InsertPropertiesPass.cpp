@@ -129,14 +129,16 @@ void InsertPropertiesPass::runOnOperation() {
                 ++it;
             }
             
-            if (hasProperties) {
+            // Each original matrix result consumes one record, even if it adds no facts.
+            ++propertyIndex;
+            if (hasProperties && finalType != mt) {
                 if ((llvm::isa<scf::ForOp>(op) || llvm::isa<scf::WhileOp>(op) || llvm::isa<scf::IfOp>(op))) {
                     builder.setInsertionPointAfter(op);
                     auto castOp = builder.create<daphne::CastOp>(op->getLoc(), finalType, res);
                     res.replaceAllUsesExcept(castOp.getResult(), castOp);
                 } else {
                     // Handle loop/if uses with special insertion point
-                    for (auto &use : res.getUses()) {
+                    for (auto &use : llvm::make_early_inc_range(res.getUses())) {
                         Operation *userOp = use.getOwner();
                         if (isa<scf::ForOp>(userOp) || isa<scf::IfOp>(userOp) || isa<scf::WhileOp>(userOp)) {
                             auto key = std::make_pair(res, userOp);
@@ -146,7 +148,8 @@ void InsertPropertiesPass::runOnOperation() {
                                 castOpValue = castOpMap[key];
                             } else {
                                 builder.setInsertionPoint(userOp);
-                                castOpValue = builder.create<daphne::CastOp>(op->getLoc(), finalType, res);
+                                // Loop-carried types must keep matching the region arguments.
+                                castOpValue = builder.create<daphne::CastOp>(op->getLoc(), mt, res);
                                 castOpMap[key] = castOpValue;
                             }
                             
@@ -159,15 +162,14 @@ void InsertPropertiesPass::runOnOperation() {
                     auto castOp = builder.create<daphne::CastOp>(op->getLoc(), finalType, res);
                     res.replaceAllUsesExcept(castOp.getResult(), castOp);
                 }
-                
-                ++propertyIndex;
+
             }
         }
     };
 
+    // Match the recording traversal before inserting casts or changing operand types.
+    SmallVector<Operation *> originalOps;
     func.walk<WalkOrder::PreOrder>([&](Operation *op) -> WalkResult {
-        if (propertyIndex >= properties.size())
-            return WalkResult::advance();
 
         // Skip specific ops that should not be processed.
         if (isa<daphne::RecordPropertiesOp>(op) || op->hasAttr("daphne.value_ids"))
@@ -178,7 +180,7 @@ void InsertPropertiesPass::runOnOperation() {
 
         // Handle loops (scf.for and scf.while) and if-blocks as black boxes.
         if (isa<scf::ForOp>(op) || isa<scf::WhileOp>(op) || isa<scf::IfOp>(op)) {
-            insertRecordedProperties(op);
+            originalOps.push_back(op);
             return WalkResult::skip();
         }
 
@@ -190,9 +192,11 @@ void InsertPropertiesPass::runOnOperation() {
         }
 
         // Process other operations with matrix-typed results.
-        insertRecordedProperties(op);
+        originalOps.push_back(op);
         return WalkResult::advance();
     });
+    for (Operation *op : originalOps)
+        insertRecordedProperties(op);
 
     if (propertyIndex < properties.size())
         llvm::errs() << "warning: not all properties were applied\n";

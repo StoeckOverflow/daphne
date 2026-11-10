@@ -36,18 +36,15 @@ module {
   }
 }
 
-// CHECK-INSERTED: "daphne.randMatrix"(%0, %0, %4, %5, %6, %7) : (index, index, si64, si64, f64, si64) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
-// CHECK-INSERTED: "daphne.randMatrix"(%0, %0, %4, %5, %6, %7) : (index, index, si64, si64, f64, si64) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
-// CHECK-INSERTED: "daphne.ewAdd"(%8, %9) : (!daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>, !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>) -> !daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>
-// CHECK-INSERTED: "daphne.ewMul"(%10, %3) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>, si64) -> !daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>
-// CHECK-INSERTED: %16:2 = scf.if %15 -> (!daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>, !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>) {
-// CHECK-INSERTED: "daphne.ewMul"(%11, %3) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>, si64) -> !daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>
-// CHECK-INSERTED: "daphne.cast"(%21) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>) -> !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>
-// CHECK-INSERTED: "daphne.cast"(%10) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>) -> !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>
-// CHECK-INSERTED: scf.yield %22, %23 : !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>, !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>
+// The branch result types stay unchanged; recorded properties refine their uses.
+// CHECK-INSERTED: %[[ADD:[0-9]+]] = "daphne.ewAdd"
+// CHECK-INSERTED: %[[REFINED:[0-9]+]] = "daphne.cast"(%[[ADD]]) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
+// CHECK-INSERTED: "daphne.ewMul"(%[[REFINED]],
+// CHECK-INSERTED: %[[IF:[0-9]+]]:2 = scf.if {{.*}} -> (!daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>, !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>)
+// CHECK-INSERTED: scf.yield {{.*}} : !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>, !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>
 // CHECK-INSERTED: } else {
-// CHECK-INSERTED: "daphne.cast"(%11) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>) -> !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>
-// CHECK-INSERTED: "daphne.cast"(%11) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>) -> !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>
-// CHECK-INSERTED: scf.yield %21, %22 : !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>, !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>
-// CHECK-INSERTED: "daphne.cast"(%16#1) : (!daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
-// CHECK-INSERTED: "daphne.cast"(%16#0) : (!daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
+// CHECK-INSERTED: scf.yield {{.*}} : !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>, !daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>
+// CHECK-INSERTED: %[[OUT1:[0-9]+]] = "daphne.cast"(%[[IF]]#1) : (!daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
+// CHECK-INSERTED: %[[OUT0:[0-9]+]] = "daphne.cast"(%[[IF]]#0) : (!daphne.Matrix<5000x5000xsi64:sp[0.000000e+00]>) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
+// CHECK-INSERTED: "daphne.sumAll"(%[[OUT1]]) : (!daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>) -> si64
+// CHECK-INSERTED: "daphne.sumAll"(%[[OUT0]]) : (!daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>) -> si64

@@ -41,16 +41,15 @@ module {
   }
 }
 
+// UDF bodies and loop-carried types are not specialized by recorded main-function facts.
 // CHECK-INSERTED: func.func @"some_calculation-1-1"(%arg0: !daphne.Matrix<?x?xsi64>) -> !daphne.Matrix<?x?xsi64>
-// CHECK-INSERTED: "daphne.randMatrix"(%3, %3, %6, %7, %8, %9) : (index, index, si64, si64, f64, si64) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
-// CHECK-INSERTED: "daphne.randMatrix"(%3, %3, %6, %7, %8, %9) : (index, index, si64, si64, f64, si64) -> !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>
-// CHECK-INSERTED: "daphne.ewAdd"(%10, %11) : (!daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>, !daphne.Matrix<5000x5000xsi64:sp[8.000000e-01]>) -> !daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>
-// CHECK-INSERTED: "daphne.ewMul"(%12, %2) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>, si64) -> !daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>
-// CHECK-INSERTED: "daphne.cast"(%12) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>) -> !daphne.Matrix<5000x5000xsi64>
-// CHECK-INSERTED: "daphne.cast"(%13) : (!daphne.Matrix<5000x5000xsi64:sp[0.95999999999999996]>) -> !daphne.Matrix<5000x5000xsi64>
-// CHECK-INSERTED: "daphne.cast"(%14) : (!daphne.Matrix<5000x5000xsi64>) -> !daphne.Matrix<?x?xsi64>
-// CHECK-INSERTED: "daphne.cast"(%15) : (!daphne.Matrix<5000x5000xsi64>) -> !daphne.Matrix<?x?xsi64>
-// CHECK-INSERTED: scf.for %arg0 = %0 to %1 step %0 iter_args(%arg1 = %16, %arg2 = %17) -> (!daphne.Matrix<?x?xsi64>, !daphne.Matrix<?x?xsi64>)
-// CHECK-INSERTED: scf.yield %24, %25 : !daphne.Matrix<?x?xsi64>, !daphne.Matrix<?x?xsi64>
-// CHECK-INSERTED: "daphne.cast"(%18#1) : (!daphne.Matrix<?x?xsi64>) -> !daphne.Matrix<?x?xsi64:sp[1.000000e+00]>
-// CHECK-INSERTED: "daphne.cast"(%18#0) : (!daphne.Matrix<?x?xsi64>) -> !daphne.Matrix<?x?xsi64:sp[1.000000e+00]>
+// CHECK-INSERTED-NOT: "daphne.cast"
+// CHECK-INSERTED: func.func @main()
+// CHECK-INSERTED: %[[LOOP:[0-9]+]]:2 = scf.for {{.*}} -> (!daphne.Matrix<?x?xsi64>, !daphne.Matrix<?x?xsi64>)
+// CHECK-INSERTED: "daphne.generic_call"(%arg1)
+// CHECK-INSERTED: "daphne.generic_call"(%arg2)
+// CHECK-INSERTED: scf.yield {{.*}} : !daphne.Matrix<?x?xsi64>, !daphne.Matrix<?x?xsi64>
+// CHECK-INSERTED: %[[OUT1:[0-9]+]] = "daphne.cast"(%[[LOOP]]#1) : (!daphne.Matrix<?x?xsi64>) -> !daphne.Matrix<?x?xsi64:sp[1.000000e+00]>
+// CHECK-INSERTED: %[[OUT0:[0-9]+]] = "daphne.cast"(%[[LOOP]]#0) : (!daphne.Matrix<?x?xsi64>) -> !daphne.Matrix<?x?xsi64:sp[1.000000e+00]>
+// CHECK-INSERTED: "daphne.sumAll"(%[[OUT0]]) : (!daphne.Matrix<?x?xsi64:sp[1.000000e+00]>) -> si64
+// CHECK-INSERTED: "daphne.sumAll"(%[[OUT1]]) : (!daphne.Matrix<?x?xsi64:sp[1.000000e+00]>) -> si64

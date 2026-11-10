@@ -35,16 +35,14 @@ module {
   }
 }
 
-
-// CHECK-INSERTED: "daphne.randMatrix"(%3, %3, %8, %7, %9, %10) : (index, index, si64, si64, f64, si64) -> !daphne.Matrix<10x10xsi64:sp[8.000000e-01]>
-// CHECK-INSERTED: "daphne.randMatrix"(%3, %3, %8, %7, %9, %10) : (index, index, si64, si64, f64, si64) -> !daphne.Matrix<10x10xsi64:sp[8.000000e-01]>
-// CHECK-INSERTED: "daphne.ewAdd"(%11, %12) : (!daphne.Matrix<10x10xsi64:sp[8.000000e-01]>, !daphne.Matrix<10x10xsi64:sp[8.000000e-01]>) -> !daphne.Matrix<10x10xsi64:sp[0.95999999999999996]>
-// CHECK-INSERTED: "daphne.ewAdd"(%13, %6) : (!daphne.Matrix<10x10xsi64:sp[0.95999999999999996]>, f64) -> !daphne.Matrix<10x10xf64>
-// CHECK-INSERTED: "daphne.ewMul"(%13, %2) : (!daphne.Matrix<10x10xsi64:sp[0.95999999999999996]>, si64) -> !daphne.Matrix<10x10xsi64:sp[0.95999999999999996]>
-// CHECK-INSERTED: "daphne.ewAdd"(%15, %6) : (!daphne.Matrix<10x10xsi64:sp[0.95999999999999996]>, f64) -> !daphne.Matrix<10x10xf64>
-// CHECK-INSERTED: "daphne.cast"(%14) : (!daphne.Matrix<10x10xf64>) -> !daphne.Matrix<10x10xf64>
-// CHECK-INSERTED: "daphne.cast"(%16) : (!daphne.Matrix<10x10xf64>) -> !daphne.Matrix<10x10xf64>
-// CHECK-INSERTED: scf.for %arg0 = %0 to %1 step %0 iter_args(%arg1 = %17, %arg2 = %18) -> (!daphne.Matrix<10x10xf64>, !daphne.Matrix<10x10xf64>)
-// CHECK-INSERTED: scf.yield %26, %28 : !daphne.Matrix<10x10xf64>, !daphne.Matrix<10x10xf64>
-// CHECK-INSERTED: "daphne.cast"(%19#1) : (!daphne.Matrix<10x10xf64>) -> !daphne.Matrix<10x10xf64:sp[1.000000e+00]>
-// CHECK-INSERTED: "daphne.cast"(%19#0) : (!daphne.Matrix<10x10xf64>) -> !daphne.Matrix<10x10xf64:sp[1.000000e+00]>
+// Recorded density refines values outside the loop, but not its carried types.
+// CHECK-INSERTED: %[[A:[0-9]+]] = "daphne.cast"({{.*}}) : (!daphne.Matrix<10x10xf64>) -> !daphne.Matrix<10x10xf64:sp[1.000000e+00]>
+// CHECK-INSERTED: %[[B:[0-9]+]] = "daphne.cast"({{.*}}) : (!daphne.Matrix<10x10xf64>) -> !daphne.Matrix<10x10xf64:sp[1.000000e+00]>
+// CHECK-INSERTED: %[[INIT0:[0-9]+]] = "daphne.cast"(%[[A]]) : (!daphne.Matrix<10x10xf64:sp[1.000000e+00]>) -> !daphne.Matrix<10x10xf64>
+// CHECK-INSERTED: %[[INIT1:[0-9]+]] = "daphne.cast"(%[[B]]) : (!daphne.Matrix<10x10xf64:sp[1.000000e+00]>) -> !daphne.Matrix<10x10xf64>
+// CHECK-INSERTED: %[[LOOP:[0-9]+]]:2 = scf.for {{.*}}iter_args(%arg1 = %[[INIT0]], %arg2 = %[[INIT1]]) -> (!daphne.Matrix<10x10xf64>, !daphne.Matrix<10x10xf64>)
+// CHECK-INSERTED: scf.yield {{.*}} : !daphne.Matrix<10x10xf64>, !daphne.Matrix<10x10xf64>
+// CHECK-INSERTED: %[[OUT1:[0-9]+]] = "daphne.cast"(%[[LOOP]]#1) : (!daphne.Matrix<10x10xf64>) -> !daphne.Matrix<10x10xf64:sp[1.000000e+00]>
+// CHECK-INSERTED: %[[OUT0:[0-9]+]] = "daphne.cast"(%[[LOOP]]#0) : (!daphne.Matrix<10x10xf64>) -> !daphne.Matrix<10x10xf64:sp[1.000000e+00]>
+// CHECK-INSERTED: "daphne.sumAll"(%[[OUT0]]) : (!daphne.Matrix<10x10xf64:sp[1.000000e+00]>) -> f64
+// CHECK-INSERTED: "daphne.sumAll"(%[[OUT1]]) : (!daphne.Matrix<10x10xf64:sp[1.000000e+00]>) -> f64
