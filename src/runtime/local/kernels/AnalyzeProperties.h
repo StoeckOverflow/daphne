@@ -92,7 +92,8 @@ template <typename VT> struct AnalyzeProperties<DenseMatrix<VT>> {
 
         if constexpr (std::is_arithmetic_v<VT>) {
             if (needSymmetric) {
-                mat->symmetric = isSymmetric(arg, ctx) ? BoolOrUnknown::True : BoolOrUnknown::False;
+                mat->symmetric = numRows == numCols && isSymmetric(arg, ctx) ? BoolOrUnknown::True
+                                                                         : BoolOrUnknown::False;
                 mat->is_symmetric = true;
                 analyzedAny = true;
             }

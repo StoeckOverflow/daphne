@@ -158,3 +158,12 @@ TEST_CASE("Map cost model compares remaining execution costs", TAG_KERNELS TAG_A
     CHECK(AdaptiveCostModel::calculateThresholdRatio(100, costs) == Approx(0.75));
     CHECK_FALSE(AdaptiveCostModel::analyzeCosts(80, 100, costs).recommendCache);
 }
+
+TEST_CASE("Rectangular property acquisition establishes nonsymmetry", TAG_KERNELS TAG_ADAPTIVE) {
+    auto *arg = genGivenVals<DenseMatrix<double>>(2, {1., 2., 3., 4., 5., 6.});
+    AnalysisContext context;
+    analyzeData(arg, false, true, false, false, false, false, &context.ctx);
+    CHECK(arg->is_symmetric);
+    CHECK(arg->symmetric == BoolOrUnknown::False);
+    DataObjectFactory::destroy(arg);
+}

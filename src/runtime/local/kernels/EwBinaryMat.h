@@ -153,7 +153,7 @@ template <typename VT> struct EwBinaryMat<CSRMatrix<VT>, CSRMatrix<VT>, CSRMatri
             sameSparityPattern = true;
         }
         // Case 2: Different pattern IDs - runtime comparison (only if adaptiveAnalyze enabled)
-        else if (ctx->getUserConfig().adaptiveAnalyze &&
+        else if (ctx && ctx->getUserConfig().adaptiveAnalyze &&
                  lhs->is_sparsityPatternID && rhs->is_sparsityPatternID &&
                  lhs->sparsityPatternID != rhs->sparsityPatternID &&
                  lhs->sparsityPatternID != -1 && rhs->sparsityPatternID != -1) {
@@ -172,7 +172,7 @@ template <typename VT> struct EwBinaryMat<CSRMatrix<VT>, CSRMatrix<VT>, CSRMatri
         auto analysis_duration = std::chrono::duration_cast<std::chrono::duration<double>>(analysis_end_time - analysis_start_time);
 
         // Fast path for operations with same sparsity pattern
-        if (sameSparityPattern) {
+        if (sameSparityPattern && !lhs->isView() && !rhs->isView() && res == nullptr) {
             if (opCode == BinaryOpCode::ADD) {
                 // Start execution timing (after analysis)
                 auto exec_start_time = std::chrono::high_resolution_clock::now();

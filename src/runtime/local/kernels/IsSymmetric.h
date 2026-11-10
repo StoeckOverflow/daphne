@@ -51,8 +51,7 @@ template <typename VT> struct IsSymmetric<DenseMatrix<VT>> {
         const size_t numCols = arg->getNumCols();
 
         if (numRows != numCols)
-            //throw std::runtime_error("the provided matrix is not square");
-            return false;
+            throw std::runtime_error("the provided matrix is not square");
 
         // TODO add cache-conscious operations
         for (size_t rowIdx = 0; rowIdx < numRows; rowIdx++)
