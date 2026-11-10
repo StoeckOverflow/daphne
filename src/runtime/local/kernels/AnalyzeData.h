@@ -17,33 +17,15 @@
 #ifndef SRC_RUNTIME_LOCAL_KERNELS_ANALYZEDATA_H
 #define SRC_RUNTIME_LOCAL_KERNELS_ANALYZEDATA_H
 
-#include <runtime/local/datastructures/DenseMatrix.h>
-#include <runtime/local/kernels/TransferProperties.h>
-#include <runtime/local/kernels/IsSymmetric.h>
-#include <runtime/local/kernels/IsSorted.h>
+#include <runtime/local/kernels/AnalyzeProperties.h>
 
-#include <cstdio>
-
-// Overloaded version allowing selective property analysis
+// Adapt the public operation/kernel ABI to an internal acquisition request.
 template <typename DT>
-void analyzeData(const DT *arg, bool analyzeSparsity,
-                bool analyzeSymmetric,
-                bool analyzeSortness,
-                bool analyzeMinMax,
-                bool analyzeDistinct,
-                bool analyzeSparsityPattern,
-                DCTX(ctx)) {
-    TransferProperties<DT>::apply(arg,
-        /* is_sparsity */ analyzeSparsity, /* sparsity */ 0.0,
-        /* is_symmetric */ analyzeSymmetric, /* symmetric */ -1,
-        /* is_sortness */ analyzeSortness, /* sortness */ -1,
-        /* is_minValue */ analyzeMinMax, /* minValue */ 0,
-        /* is_maxValue */ analyzeMinMax, /* maxValue */ 0,
-        /* is_distinct */ analyzeDistinct, /* distinct */ 0,
-        /* is_sparsityPatternID */ analyzeSparsityPattern, /* sparsityPatternID */ -1,
-        ctx,
-        /* specificAnalysis  */ true
-    );
+void analyzeData(const DT *arg, bool analyzeSparsity, bool analyzeSymmetric, bool analyzeSortness, bool analyzeMinMax,
+                 bool analyzeDistinct, bool analyzeSparsityPattern, DCTX(ctx)) {
+    AnalysisRequest request{analyzeSparsity, analyzeSymmetric, analyzeSortness,       analyzeMinMax,
+                            analyzeMinMax,   analyzeDistinct,  analyzeSparsityPattern};
+    AnalyzeProperties<DT>::apply(arg, request, ctx);
 }
 
 #endif // SRC_RUNTIME_LOCAL_KERNELS_ANALYZEDATA_H

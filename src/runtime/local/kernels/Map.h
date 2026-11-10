@@ -22,7 +22,6 @@
 #include <runtime/local/datastructures/DenseMatrix.h>
 #include <runtime/local/datastructures/Matrix.h>
 #include <runtime/local/kernels/AdaptiveCostModel.h>
-#include <runtime/local/kernels/TransferProperties.h>
 
 #include <algorithm>
 #include <iostream>
@@ -84,7 +83,8 @@ template <typename VTRes, typename VTArg> struct Map<DenseMatrix<VTRes>, DenseMa
         if(ctx != nullptr && argDistinct > 0) {
             const auto &uc = ctx->getUserConfig();
             useAdaptiveThreshold = uc.mapDistinctThresholdAdaptive;
-            std::cerr << "[DEBUG] Map.h: useAdaptiveThreshold=" << useAdaptiveThreshold << std::endl;
+            if (ctx && ctx->getUserConfig().enable_statistics)
+                std::cerr << "[DEBUG] Map.h: useAdaptiveThreshold=" << useAdaptiveThreshold << std::endl;
             
             // Static threshold configuration (only if not using adaptive)
             if(!useAdaptiveThreshold) {
@@ -106,8 +106,7 @@ template <typename VTRes, typename VTArg> struct Map<DenseMatrix<VTRes>, DenseMa
             auto costModelStart = std::chrono::high_resolution_clock::now();
             
             // Measure actual costs (Cf, CL, CI) via micro-benchmarking
-            const double tp_last = TransferPropertiesRuntime::getLastAnalyzeSeconds();
-            auto measuredParams = AdaptiveCostModel::measureActualCosts(udf, valuesArg, n, tp_last > 0.0 ? tp_last : -1.0);
+            auto measuredParams = AdaptiveCostModel::measureActualCosts(udf, valuesArg, n);
             
             // Calculate optimal threshold and override
             size_t adaptiveThr = AdaptiveCostModel::calculateThreshold(n, measuredParams);
@@ -118,8 +117,9 @@ template <typename VTRes, typename VTArg> struct Map<DenseMatrix<VTRes>, DenseMa
             double costModelTime = std::chrono::duration<double>(costModelEnd - costModelStart).count();
             
             bool actualDecision = (static_cast<size_t>(argDistinct) <= distinctThreshold);
-            AdaptiveCostModel::logThresholdDecision(
-                static_cast<size_t>(argDistinct), adaptiveThr, actualDecision, costModelTime);
+            if (ctx && ctx->getUserConfig().enable_statistics)
+                AdaptiveCostModel::logThresholdDecision(
+                    static_cast<size_t>(argDistinct), adaptiveThr, actualDecision, costModelTime);
         }
 
         // Start timing the kernel's core execution
@@ -151,9 +151,11 @@ template <typename VTRes, typename VTArg> struct Map<DenseMatrix<VTRes>, DenseMa
         auto map_end = std::chrono::high_resolution_clock::now();
         double map_secs = std::chrono::duration<double>(map_end - map_start).count();
         
-        std::cerr << "[KERNEL_TIME] Map: " << std::fixed << std::setprecision(6) 
+        if (ctx && ctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] Map: " << std::fixed << std::setprecision(6)
                   << map_secs << " seconds (DenseMatrix " << numRows << "x" << numCols 
-                  << ", mode=" << (usedCache ? "cache" : "default") << ")" << std::endl;    }
+                  << ", mode=" << (usedCache ? "cache" : "default") << ")" << std::endl;
+    }
 };
 
 // ----------------------------------------------------------------------------

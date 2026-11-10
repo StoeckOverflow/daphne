@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <runtime/local/context/DaphneContext.h>
 #include <cstddef>
 #include <algorithm>
 #include <cmath>
@@ -31,11 +30,12 @@
 
 // Simple cost model for cache vs direct execution
 namespace AdaptiveCostModel {
+    // Acquisition is already paid for; compare only remaining execution costs.
     struct CostParams {
-        double Cf, CL, CI, A;
-        CostParams() : Cf(1000.0), CL(10.0), CI(20.0), A(0.0) {}
-        CostParams(double cf, double cl, double ci, double a = 0.0) 
-            : Cf(cf), CL(cl), CI(ci), A(a) {}
+        double Cf, CL, CI;
+        CostParams() : Cf(1000.0), CL(10.0), CI(20.0) {}
+        CostParams(double cf, double cl, double ci)
+            : Cf(cf), CL(cl), CI(ci) {}
     };
     
     inline size_t calculateThreshold(size_t n, const CostParams& params) {
@@ -43,13 +43,13 @@ namespace AdaptiveCostModel {
             return 0;
         }
         
-        double dvStar = (static_cast<double>(n) * (params.Cf - params.CL) - params.A) / (params.Cf + params.CI);
+        double dvStar = (static_cast<double>(n) * (params.Cf - params.CL)) / (params.Cf + params.CI);
         return static_cast<size_t>(std::max(0.0, std::min(dvStar, static_cast<double>(n))));
     }
     
     inline double calculateThresholdRatio(size_t n, const CostParams& params) {
         if (n == 0) return 0.0;
-        double dvStar = (static_cast<double>(n) * (params.Cf - params.CL) - params.A) / (params.Cf + params.CI);
+        double dvStar = (static_cast<double>(n) * (params.Cf - params.CL)) / (params.Cf + params.CI);
         double ratio = dvStar / static_cast<double>(n);
         return std::max(0.0, std::min(ratio, 1.0));
     }
@@ -68,7 +68,7 @@ namespace AdaptiveCostModel {
     inline CostAnalysis analyzeCosts(size_t dv, size_t n, const CostParams& params) {
         CostAnalysis analysis;
         analysis.defaultCost = static_cast<double>(n) * params.Cf;
-        analysis.cacheCost = params.A + static_cast<double>(n) * params.CL + 
+        analysis.cacheCost = static_cast<double>(n) * params.CL +
                            static_cast<double>(dv) * (params.CI + params.Cf);
         analysis.savings = analysis.defaultCost - analysis.cacheCost;
         analysis.threshold = calculateThreshold(n, params);
@@ -86,8 +86,7 @@ namespace AdaptiveCostModel {
     }
         
     template<typename VTArg, typename VTRes>
-    inline CostParams measureActualCosts(VTRes (*udf)(VTArg), const VTArg* actualData, size_t actualDataSize, 
-                                       double currentAnalysisTimeSeconds = -1.0) {
+    inline CostParams measureActualCosts(VTRes (*udf)(VTArg), const VTArg* actualData, size_t actualDataSize) {
         CostParams params;
         const size_t numSamples = std::min(actualDataSize, static_cast<size_t>(100));
         
@@ -150,9 +149,6 @@ namespace AdaptiveCostModel {
         auto endInsert = std::chrono::high_resolution_clock::now();
         params.CI = std::chrono::duration<double, std::nano>(endInsert - startInsert).count() / uniqueKeys.size();
 
-        // Set analysis cost
-        params.A = (currentAnalysisTimeSeconds > 0.0) ? currentAnalysisTimeSeconds * 1e9 : 0.0;
-        
         // Simple bounds checking
         params.Cf = std::max(1.0, params.Cf);
         params.CL = std::max(1.0, params.CL);

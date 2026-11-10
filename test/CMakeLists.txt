@@ -149,6 +149,7 @@ set(TEST_SOURCES
         runtime/local/kernels/InsertRowTest.cpp
         runtime/local/kernels/IsSymmetricTest.cpp
         runtime/local/kernels/NumDistinctApproxTest.cpp
+        runtime/local/kernels/PropertyAnalysisTest.cpp
         runtime/local/kernels/MapTest.cpp
         runtime/local/kernels/MatMulTest.cpp
         runtime/local/kernels/OneHotTest.cpp
