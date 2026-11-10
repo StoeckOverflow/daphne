@@ -99,8 +99,6 @@ struct DaphneUserConfig {
     
     // Adaptive analysis configuration
     bool adaptiveAnalyze = false; // enabled via --adaptiveAnalyze
-    std::string adaptive_map_file = "adaptive_map.json";
-    std::map<std::string, std::vector<std::string>> adaptive_map;
 
     enum class AdaptiveAnalyzeMode { Exact, Approx, EarlyAbort, Simd };
     AdaptiveAnalyzeMode adaptiveAnalyzeMode = AdaptiveAnalyzeMode::Exact;

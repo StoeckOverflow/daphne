@@ -1,0 +1,11 @@
+// The first request is disabled; the second discovers density at runtime.
+A = readMatrix("test/api/cli/adaptive/sparse.csv");
+B = fill(1.0, 100, 2);
+analyzeData(A, sum(A) < 0.0, false, false, false, false, false);
+print(A @ B);
+analyzeData(A, sum(A) > 0.0, false, false, false, false, false);
+// A different right operand prevents common-subexpression elimination of MatMul.
+print(A @ fill(2.0, 100, 2));
+// Static requests remain a single operation, including the empty request.
+analyzeData(A, false, false, false, false, false, false);
+analyzeData(A, false, false, false, true, true, false);

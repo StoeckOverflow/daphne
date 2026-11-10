@@ -1,0 +1,57 @@
+// Request placement across branches and automatic acquisition reuse.
+
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/matmul_branch.daphne 2>&1 | FileCheck %s --check-prefix=LOCAL-PLAN --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+
+// Each branch and the following consumer need their own requests.
+// LOCAL-PLAN-LABEL: IR after transferring data properties:
+// LOCAL-PLAN: "scf.if"
+// LOCAL-PLAN: "daphne.analyzeData"([[L0:%[a-zA-Z0-9_]+]]) <{requested_properties = 1 : i32}>
+// LOCAL-PLAN: "daphne.matMul"([[L0]], {{%[a-zA-Z0-9_]+}},
+// LOCAL-PLAN: }, {
+// LOCAL-PLAN: "daphne.analyzeData"([[L1:%[a-zA-Z0-9_]+]]) <{requested_properties = 1 : i32}>
+// LOCAL-PLAN: "daphne.matMul"([[L1]], {{%[a-zA-Z0-9_]+}},
+// LOCAL-PLAN: }) : (i1) -> ()
+// LOCAL-PLAN: "daphne.analyzeData"([[L2:%[a-zA-Z0-9_]+]]) <{requested_properties = 1 : i32}>
+// LOCAL-PLAN: "daphne.matMul"([[L2]], {{%[a-zA-Z0-9_]+}},
+
+// Automatic acquisition must work without adaptiveAnalyze.
+// RUN: cd %S/../.. && daphne --automaticallyAnalyzeEverything --explain=transfer_data_props %S/../api/cli/adaptive/comparison.daphne 2>&1 | FileCheck %s --check-prefix=AUTOMATIC-AUTO --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// Enabling adaptive requests as well must not duplicate acquisition of the comparison input.
+// RUN: cd %S/../.. && daphne --automaticallyAnalyzeEverything --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/comparison.daphne 2>&1 | FileCheck %s --check-prefix=AUTOMATIC-AUTO --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// RUN: cd %S/../.. && daphne --automaticallyAnalyzeEverything --adaptiveAnalyze=exact --explain=kernels %S/../api/cli/adaptive/comparison.daphne 2>&1 | FileCheck %s --check-prefix=AUTOMATIC-LOWER --implicit-check-not=_analyzeData__
+
+// AUTOMATIC-AUTO-LABEL: IR after transferring data properties:
+// AUTOMATIC-AUTO: [[INPUT:%[a-zA-Z0-9_]+]] = "daphne.read"
+// AUTOMATIC-AUTO: "daphne.transferProperties"([[INPUT]],
+// AUTOMATIC-AUTO: "daphne.analyzeData"([[INPUT]]) <{requested_properties = 63 : i32}>
+// AUTOMATIC-AUTO: [[RESULT:%[a-zA-Z0-9_]+]] = "daphne.ewEq"([[INPUT]],
+// AUTOMATIC-AUTO: "daphne.transferProperties"([[RESULT]],
+// AUTOMATIC-AUTO: "daphne.analyzeData"([[RESULT]]) <{requested_properties = 63 : i32}>
+// AUTOMATIC-AUTO: "daphne.sumAll"([[RESULT]])
+
+// AUTOMATIC-LOWER-LABEL: IR after kernel lowering:
+// AUTOMATIC-LOWER: callee = "_transferProperties__
+// AUTOMATIC-LOWER: [[YES:%[a-zA-Z0-9_]+]] = "daphne.constant"() <{value = true}>
+// AUTOMATIC-LOWER: "daphne.call_kernel"({{[^,]+}}, [[YES]], [[YES]], [[YES]], [[YES]], [[YES]], [[YES]],{{.*}}callee = "_analyzeData__
+// AUTOMATIC-LOWER: callee = "_ewEq__
+// AUTOMATIC-LOWER: callee = "_transferProperties__
+// AUTOMATIC-LOWER: [[YES:%[a-zA-Z0-9_]+]] = "daphne.constant"() <{value = true}>
+// AUTOMATIC-LOWER: "daphne.call_kernel"({{[^,]+}}, [[YES]], [[YES]], [[YES]], [[YES]], [[YES]], [[YES]],{{.*}}callee = "_analyzeData__
+// AUTOMATIC-LOWER: callee = "_sumAll__
+
+
+// Outer inputs are already covered in both branches; branch-local outputs still need acquisition.
+// RUN: cd %S/../.. && daphne --automaticallyAnalyzeEverything --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/matmul_branch.daphne 2>&1 | FileCheck %s --check-prefix=AUTOMATIC-BRANCH --implicit-check-not=daphne.analyzeData
+// AUTOMATIC-BRANCH-LABEL: IR after transferring data properties:
+// AUTOMATIC-BRANCH: "daphne.analyzeData"([[A:%[a-zA-Z0-9_]+]]) <{requested_properties = 63 : i32}>
+// AUTOMATIC-BRANCH: "daphne.analyzeData"([[B:%[a-zA-Z0-9_]+]]) <{requested_properties = 63 : i32}>
+// AUTOMATIC-BRANCH: "scf.if"
+// AUTOMATIC-BRANCH: [[THEN:%[a-zA-Z0-9_]+]] = "daphne.matMul"([[A]], [[B]],
+// AUTOMATIC-BRANCH: "daphne.transferProperties"([[THEN]],
+// AUTOMATIC-BRANCH: "daphne.analyzeData"([[THEN]]) <{requested_properties = 63 : i32}>
+// AUTOMATIC-BRANCH: [[ELSE:%[a-zA-Z0-9_]+]] = "daphne.matMul"([[A]], [[B]],
+// AUTOMATIC-BRANCH: "daphne.transferProperties"([[ELSE]],
+// AUTOMATIC-BRANCH: "daphne.analyzeData"([[ELSE]]) <{requested_properties = 63 : i32}>
+// AUTOMATIC-BRANCH: [[AFTER:%[a-zA-Z0-9_]+]] = "daphne.matMul"([[A]], [[B]],
+// AUTOMATIC-BRANCH: "daphne.transferProperties"([[AFTER]],
+// AUTOMATIC-BRANCH: "daphne.analyzeData"([[AFTER]]) <{requested_properties = 63 : i32}>

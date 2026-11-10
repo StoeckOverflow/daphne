@@ -1,0 +1,59 @@
+// Consumer-specific requests; generic lowering and disabled mode are checked once.
+
+// Check the left operand, no runtime context during planning, and no duplicate insertion in lowering.
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/matmul_sparse.daphne 2>&1 | FileCheck %s --check-prefix=MATMUL-PLAN --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=kernels %S/../api/cli/adaptive/matmul_sparse.daphne 2>&1 | FileCheck %s --check-prefix=MATMUL-LOWER --implicit-check-not=_analyzeData__
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/matmul_transposed.daphne 2>&1 | FileCheck %s --check-prefix=MATMUL-TRANSPOSE --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// RUN: cd %S/../.. && daphne --explain=transfer_data_props,kernels %S/../api/cli/adaptive/matmul_sparse.daphne 2>&1 | FileCheck %s --check-prefix=MATMUL-OFF --implicit-check-not=daphne.analyzeData --implicit-check-not=_analyzeData__
+
+// MATMUL-PLAN-LABEL: IR after transferring data properties:
+// MATMUL-PLAN: "daphne.analyzeData"([[LHS:%[a-zA-Z0-9_]+]]) <{requested_properties = 1 : i32}>
+// MATMUL-PLAN: "daphne.matMul"([[LHS]], {{%[a-zA-Z0-9_]+}},
+
+// MATMUL-LOWER-LABEL: IR after kernel lowering:
+// MATMUL-LOWER: "daphne.call_kernel"([[LHS:%[a-zA-Z0-9_]+]],{{.*}}callee = "_analyzeData__
+// MATMUL-LOWER: "daphne.call_kernel"([[LHS]], {{%[a-zA-Z0-9_]+}},{{.*}}callee = "_matMul__
+
+// MATMUL-OFF: IR after transferring data properties:
+// MATMUL-OFF: "daphne.matMul"
+// MATMUL-OFF: IR after kernel lowering:
+// MATMUL-OFF: callee = "_matMul__
+
+// MATMUL-TRANSPOSE: IR after transferring data properties:
+// MATMUL-TRANSPOSE: "daphne.matMul"
+
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/comparison.daphne 2>&1 | FileCheck %s --check-prefix=EQ-PLAN --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+
+// EQ-PLAN-LABEL: IR after transferring data properties:
+// EQ-PLAN: "daphne.analyzeData"([[INPUT:%[a-zA-Z0-9_]+]]) <{requested_properties = 8 : i32}>
+// EQ-PLAN: "daphne.ewEq"([[INPUT]]
+
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/map.daphne 2>&1 | FileCheck %s --check-prefix=MAP-PLAN --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=kernels %S/../api/cli/adaptive/map.daphne 2>&1 | FileCheck %s --check-prefix=MAP-LOWER --implicit-check-not=_analyzeData__
+
+// MAP-PLAN-LABEL: IR after transferring data properties:
+// MAP-PLAN: "daphne.analyzeData"([[INPUT:%[a-zA-Z0-9_]+]]) <{requested_properties = 16 : i32}>
+// MAP-PLAN: "daphne.map"([[INPUT]]
+// MAP-LOWER-LABEL: IR after kernel lowering:
+// MAP-LOWER: callee = "_analyzeData__
+// MAP-LOWER: "daphne.map"
+
+// RUN: cd %S/../.. && daphne --columnar --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/join.daphne 2>&1 | FileCheck %s --check-prefix=JOIN-PLAN --implicit-check-not=daphne.analyzeData --implicit-check-not=daphne.DaphneContext
+
+// JOIN-PLAN: "daphne.analyzeData"([[R:%[a-zA-Z0-9_]+]]) <{requested_properties = 8 : i32}>
+// JOIN-PLAN: "daphne.colJoin"({{%[a-zA-Z0-9_]+}}, [[R]],
+
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/comparison_opportunities.daphne 2>&1 | FileCheck %s --check-prefix=ELIGIBILITY-CHECK --implicit-check-not=daphne.analyzeData
+// RUN: cd %S/../.. && daphne --adaptiveAnalyze=exact --explain=transfer_data_props %S/../api/cli/adaptive/join.daphne 2>&1 | FileCheck %s --check-prefix=ELIGIBILITY-FRAME --implicit-check-not=daphne.analyzeData
+
+// ELIGIBILITY-CHECK-LABEL: IR after transferring data properties:
+// ELIGIBILITY-CHECK: "daphne.ewAdd"
+// ELIGIBILITY-CHECK: "daphne.ewLt"
+// ELIGIBILITY-CHECK: "daphne.analyzeData"([[INPUT:%[a-zA-Z0-9_]+]]) <{requested_properties = 12 : i32}>
+// ELIGIBILITY-CHECK: "daphne.ewLt"([[INPUT]],
+// ELIGIBILITY-CHECK: 200
+// ELIGIBILITY-CHECK: 200
+
+// Frame innerJoin does not consume sortedness or support its acquisition.
+// ELIGIBILITY-FRAME-LABEL: IR after transferring data properties:
+// ELIGIBILITY-FRAME: "daphne.innerJoin"

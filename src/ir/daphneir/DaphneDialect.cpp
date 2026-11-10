@@ -22,6 +22,7 @@
 #include <ir/daphneir/DaphneOpsEnums.cpp.inc>
 
 #include "mlir/Support/LogicalResult.h"
+#include "mlir/IR/DialectImplementation.h"
 #define GET_OP_CLASSES
 #include <ir/daphneir/DaphneOps.cpp.inc>
 #define GET_TYPEDEF_CLASSES
@@ -38,7 +39,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/DialectImplementation.h"
 // #include "mlir/IR/FunctionImplementation.h" // Removed in newer LLVM
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"

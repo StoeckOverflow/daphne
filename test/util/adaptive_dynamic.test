@@ -1,0 +1,19 @@
+// RUN: cd %S/../.. && daphne --explain=transfer_data_props %S/../api/cli/adaptive/analyze_dynamic.daphne 2>&1 | FileCheck %s
+// RUN: cd %S/../.. && daphne --explain=kernels %S/../api/cli/adaptive/analyze_dynamic.daphne 2>&1 | FileCheck %s --check-prefix=LOWER --implicit-check-not=_analyzeData__
+
+// CHECK-LABEL: IR after transferring data properties:
+// CHECK: "scf.if"
+// CHECK: "daphne.analyzeData"({{.*}}) <{requested_properties = 1 : i32}>
+// CHECK: "daphne.matMul"
+// CHECK: "scf.if"
+// CHECK: "daphne.analyzeData"({{.*}}) <{requested_properties = 1 : i32}>
+// CHECK: "daphne.matMul"
+// CHECK: "daphne.analyzeData"({{.*}}) <{requested_properties = 0 : i32}>
+// CHECK: "daphne.analyzeData"({{.*}}) <{requested_properties = 24 : i32}>
+
+// Explicit acquisition still supports arbitrary combinations without a JSON override.
+// LOWER-LABEL: IR after kernel lowering:
+// LOWER-COUNT-3: callee = "_analyzeData__
+// LOWER-DAG: [[NO:%[a-zA-Z0-9_]+]] = "daphne.constant"() <{value = false}>
+// LOWER-DAG: [[YES:%[a-zA-Z0-9_]+]] = "daphne.constant"() <{value = true}>
+// LOWER: "daphne.call_kernel"({{[^,]+}}, [[NO]], [[NO]], [[NO]], [[YES]], [[YES]], [[NO]],{{.*}}callee = "_analyzeData__

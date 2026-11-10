@@ -67,6 +67,7 @@
 #include <ir/daphneir/DaphneAdaptTypesToKernelsTraits.h>
 #include <ir/daphneir/DaphneDistributableOpInterface.h>
 #include <ir/daphneir/DaphneOpsEnums.h.inc>
+#include <ir/daphneir/DaphnePropertyExploitationOpInterface.h>
 #include <ir/daphneir/DaphneTypeStorage.h>
 #include <ir/daphneir/DaphneVectorizableOpInterface.h>
 

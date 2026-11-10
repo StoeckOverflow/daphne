@@ -26,37 +26,24 @@ namespace {
 const std::string dirPath = "test/api/cli/adaptive/";
 
 template <typename... Args>
-void checkAdaptive(const char *script, const std::string &expected, const char *adaptivePath = nullptr, Args... args) {
-    for (bool adaptive : {false, true}) {
-        DYNAMIC_SECTION(script << (adaptive ? " exact analysis" : " default")) {
-            std::stringstream out, err;
-            const auto path = dirPath + script;
-            const int status = adaptive ? runDaphne(out, err, "--adaptiveAnalyze=exact", args..., path.c_str())
-                                        : runDaphne(out, err, args..., path.c_str());
-            INFO(err.str());
-            REQUIRE(status == StatusCode::SUCCESS);
-            CHECK(out.str() == expected);
-            if (adaptivePath) {
-                const std::string marker = adaptive ? adaptivePath : "dense-blas";
-                CHECK_THAT(err.str(), Catch::Contains("seconds (" + marker + ","));
-                const std::string other = marker == "dense-blas" ? "sparse-aware" : "dense-blas";
-                CHECK_THAT(err.str(), !Catch::Contains("seconds (" + other + ","));
-            }
-        }
-    }
+void checkAdaptive(const char *script, const std::string &expected, Args... args) {
+    const auto path = dirPath + script;
+    INFO(script);
+    compareDaphneToStr(expected, path, args...);
+    compareDaphneToStr(expected, path, "--adaptiveAnalyze=exact", args...);
 }
 } // namespace
 
 TEST_CASE("Adaptive MatMul dense", TAG_ADAPTIVE TAG_MATMUL) {
-    checkAdaptive("matmul_dense.daphne", "DenseMatrix(2x2, double)\n19 22\n43 50\n", "dense-blas");
+    checkAdaptive("matmul_dense.daphne", "DenseMatrix(2x2, double)\n19 22\n43 50\n");
 }
 
 TEST_CASE("Adaptive MatMul sparse", TAG_ADAPTIVE TAG_MATMUL) {
-    checkAdaptive("matmul_sparse.daphne", "DenseMatrix(2x2, double)\n2 4\n3 6\n", "sparse-aware");
+    checkAdaptive("matmul_sparse.daphne", "DenseMatrix(2x2, double)\n2 4\n3 6\n");
 }
 
 TEST_CASE("Adaptive MatMul transposed", TAG_ADAPTIVE TAG_MATMUL) {
-    checkAdaptive("matmul_transposed.daphne", "DenseMatrix(2x2, double)\n2 2\n3 3\n", "dense-blas");
+    checkAdaptive("matmul_transposed.daphne", "DenseMatrix(2x2, double)\n2 2\n3 3\n");
 }
 
 TEST_CASE("Adaptive k-means empty cluster", TAG_ADAPTIVE TAG_ALGORITHMS) {
@@ -64,12 +51,11 @@ TEST_CASE("Adaptive k-means empty cluster", TAG_ADAPTIVE TAG_ALGORITHMS) {
 }
 
 TEST_CASE("Adaptive MatMul known density", TAG_ADAPTIVE TAG_MATMUL) {
-    checkAdaptive("matmul_known_density.daphne", "DenseMatrix(2x2, double)\n100 100\n100 100\n", "dense-blas");
+    checkAdaptive("matmul_known_density.daphne", "DenseMatrix(2x2, double)\n100 100\n100 100\n");
 }
 
 TEST_CASE("Adaptive MatMul across branches", TAG_ADAPTIVE TAG_MATMUL) {
-    checkAdaptive("matmul_branch.daphne", "DenseMatrix(2x2, double)\n2 2\n3 3\nDenseMatrix(2x2, double)\n2 2\n3 3\n",
-                  "sparse-aware");
+    checkAdaptive("matmul_branch.daphne", "DenseMatrix(2x2, double)\n2 2\n3 3\nDenseMatrix(2x2, double)\n2 2\n3 3\n");
 }
 
 TEST_CASE("Adaptive analysis FileCheck", TAG_ADAPTIVE TAG_MATMUL) {
@@ -82,13 +68,39 @@ TEST_CASE("Adaptive analysis FileCheck", TAG_ADAPTIVE TAG_MATMUL) {
 
 TEST_CASE("Adaptive comparison", TAG_ADAPTIVE TAG_OPERATIONS) {
     checkAdaptive("comparison.daphne", "1\n");
-    checkAdaptive("comparison.daphne", "1\n", nullptr, "--vec-restricted");
+    checkAdaptive("comparison.daphne", "1\n", "--vec-restricted");
 }
 
 TEST_CASE("Adaptive map", TAG_ADAPTIVE TAG_SECONDORDER) {
     checkAdaptive("map.daphne", "10\n");
+    checkAdaptive("map.daphne", "10\n", "--map-distinct-threshold-adaptive");
 }
 
 TEST_CASE("Adaptive columnar join", TAG_ADAPTIVE TAG_SQL) {
-    checkAdaptive("join.daphne", "Frame(2x2, [a.value:int64_t, b.value:int64_t])\n20 40\n30 50\n", nullptr, "--columnar");
+    checkAdaptive("join.daphne", "Frame(2x2, [a.value:int64_t, b.value:int64_t])\n20 40\n30 50\n", "--columnar");
+}
+
+TEST_CASE("Automatic property analysis", TAG_ADAPTIVE TAG_OPERATIONS) {
+    checkAdaptive("comparison.daphne", "1\n", "--automaticallyAnalyzeEverything");
+    checkAdaptive("matmul_branch.daphne", "DenseMatrix(2x2, double)\n2 2\n3 3\nDenseMatrix(2x2, double)\n2 2\n3 3\n",
+                  "--automaticallyAnalyzeEverything");
+}
+
+TEST_CASE("Explicit analysis with runtime conditions", TAG_ADAPTIVE TAG_OPERATIONS) {
+    compareDaphneToStr("DenseMatrix(2x2, double)\n2 2\n3 3\nDenseMatrix(2x2, double)\n4 4\n6 6\n",
+                      dirPath + "analyze_dynamic.daphne");
+}
+
+TEST_CASE("Adaptive path diagnostics are opt-in", TAG_ADAPTIVE TAG_OPERATIONS) {
+    std::stringstream out, err;
+    const auto path = dirPath + "analyze_dynamic.daphne";
+    const int status = runDaphne(out, err, "--statistics", path.c_str());
+    INFO(err.str());
+    REQUIRE(status == StatusCode::SUCCESS);
+    const auto dense = err.str().find("seconds (dense-blas,");
+    const auto sparse = err.str().find("seconds (sparse-aware,");
+    REQUIRE(dense != std::string::npos);
+    REQUIRE(sparse != std::string::npos);
+    CHECK(dense < sparse);
+    CHECK_THAT(err.str(), Catch::Contains("[KERNEL_TIME] TransferProperties:"));
 }

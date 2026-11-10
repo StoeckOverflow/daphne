@@ -23,6 +23,7 @@ include "ir/daphneir/DaphneDialect.td"
 include "ir/daphneir/DaphneTypes.td"
 include "ir/daphneir/DaphneDistributableOpInterface.td"
 include "ir/daphneir/DaphneInferDistinctOpInterface.td"
+include "ir/daphneir/DaphnePropertyExploitationOpInterface.td"
 include "ir/daphneir/DaphneInferFrameLabelsOpInterface.td"
 include "ir/daphneir/DaphneInferMinMaxOpInterface.td"
 include "ir/daphneir/DaphneInferSymmetricOpInterface.td"
@@ -273,6 +274,7 @@ def Daphne_IsSortedOp : Daphne_Op<"isSorted"> {
 // ****************************************************************************
 
 def Daphne_MatMulOp : Daphne_Op<"matMul", [
+    DeclareOpInterfaceMethods<PropertyExploitationOpInterface>,
     DeclareOpInterfaceMethods<VectorizableOpInterface>,
     DataTypeMat, ValueTypeFromArgs,
     DeclareOpInterfaceMethods<InferShapeOpInterface>,
@@ -432,7 +434,7 @@ def Daphne_EwConcatOp : Daphne_EwBinaryOp<"ewConcat", StrScalar, [ValueTypeStr, 
 // ----------------------------------------------------------------------------
 
 class Daphne_EwCmpOp<string name, Type inputScalarType, list<Trait> traits = []>
-: Daphne_EwBinaryOp<name, inputScalarType, !listconcat(traits, [ValueTypeCmp, CastArgsToMostGeneralArgType])> {
+: Daphne_EwBinaryOp<name, inputScalarType, !listconcat(traits, [ValueTypeCmp, CastArgsToMostGeneralArgType, DeclareOpInterfaceMethods<PropertyExploitationOpInterface>])> {
     // TODO: We do not enforce (matrix of) boolean output any more, but should
     // think about that again.
     //let results = (outs AnyTypeOf<[MatrixOf<[BoolScalar]>, BoolScalar, Unknown]>:$res);
@@ -1440,6 +1442,7 @@ def Daphne_ColMergeOp : Daphne_ColSetOp<"colMerge"> {
 }
 
 def Daphne_ColJoinOp : Daphne_Op<"colJoin", [
+    DeclareOpInterfaceMethods<PropertyExploitationOpInterface>,
     DeclareOpInterfaceMethods<InferTypesOpInterface>
 ]> {
     let summary = "N:1 equi-join on columnar data; input: data, unique data; output: sorted positions, positions.";
@@ -1456,6 +1459,7 @@ def Daphne_ColJoinOp : Daphne_Op<"colJoin", [
 }
 
 def Daphne_ColSemiJoinOp : Daphne_Op<"colSemiJoin", [
+    DeclareOpInterfaceMethods<PropertyExploitationOpInterface>,
     DataTypeCol, ValueTypeSize
 ]> {
     let summary = "Semi-join on columnar data; input: data, data, output: sorted positions.";
@@ -1828,11 +1832,31 @@ def Daphne_StopOp : Daphne_Op<"stop"> {
     let results = (outs); // no results
 }
 
+// Compile-time acquisition requests, independent of runtime property values.
+def AnalysisNone : I32BitEnumAttrCaseNone<"None", "none">;
+def AnalysisSparsity : I32BitEnumAttrCaseBit<"Sparsity", 0, "sparsity">;
+def AnalysisSymmetry : I32BitEnumAttrCaseBit<"Symmetry", 1, "symmetry">;
+def AnalysisSortedness : I32BitEnumAttrCaseBit<"Sortedness", 2, "sortedness">;
+def AnalysisMinMax : I32BitEnumAttrCaseBit<"MinMax", 3, "minmax">;
+def AnalysisDistinct : I32BitEnumAttrCaseBit<"Distinct", 4, "distinct">;
+def AnalysisSparsityPattern : I32BitEnumAttrCaseBit<"SparsityPattern", 5, "sparsity_pattern">;
+def AnalysisAll : I32BitEnumAttrCaseGroup<"All", [AnalysisSparsity, AnalysisSymmetry,
+    AnalysisSortedness, AnalysisMinMax, AnalysisDistinct, AnalysisSparsityPattern], "all">;
+def AnalysisProperty : I32BitEnumAttr<"AnalysisProperty", "requested data properties", [
+    AnalysisNone, AnalysisSparsity, AnalysisSymmetry, AnalysisSortedness,
+    AnalysisMinMax, AnalysisDistinct, AnalysisSparsityPattern, AnalysisAll]> {
+    let cppNamespace = "::mlir::daphne";
+    let printBitEnumPrimaryGroups = 1;
+}
+
 def Daphne_AnalyzeDataOp : Daphne_Op<"analyzeData"> {
     let summary = "Analyze specific data properties of a matrix/frame";
     let description = [{
-        This operation analyzes selected properties of a matrix/frame and creates
-        a TransferPropertiesOp with the analysis results.
+        This operation acquires requested, unknown properties and attaches the results
+        to the runtime data object. Acquisition support depends on the data representation.
+
+        `requested_properties` is a compile-time request set, not a statement that
+        these properties are known. It does not refine the operand's type.
         
         Properties that can be analyzed:
         - sparsity 
@@ -1844,15 +1868,9 @@ def Daphne_AnalyzeDataOp : Daphne_Op<"analyzeData"> {
     }];
 
     let arguments = (ins MatrixOrFrame:$arg,
-        BoolScalar:$analyzeSparsity,
-        BoolScalar:$analyzeSymmetric,
-        BoolScalar:$analyzeSortness,
-        BoolScalar:$analyzeMinMax,
-        BoolScalar:$analyzeDistinct,
-        BoolScalar:$analyzeSparsityPattern
-    );
-    
+        EnumProp<AnalysisProperty>:$requested_properties);
     let results = (outs); // no results
+    let assemblyFormat = "$arg `requested_properties` `=` $requested_properties attr-dict `:` type($arg)";
 }
 
 // ----------------------------------------------------------------------------
@@ -2033,7 +2051,7 @@ def Daphne_DistributedPipelineOp : Daphne_Op<"distributedPipeline", [AttrSizedOp
 // Higher-order operations
 // ****************************************************************************
 
-def Daphne_MapOp : Daphne_Op<"map", [ShapeFromArg]> {
+def Daphne_MapOp : Daphne_Op<"map", [ShapeFromArg, DeclareOpInterfaceMethods<PropertyExploitationOpInterface>]> {
     let summary = "Applies a user-defined function to elements of a matrix.";
     // Unlike most other DaphneIR ops, this op explicitly needs the DaphneContext as an argument, because it is not
     // lowered to CallKernelOp in RewriteToCallKernelOpsPass but in LowerToLLVMPass, where an extraction of the

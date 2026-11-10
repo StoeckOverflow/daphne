@@ -20,42 +20,15 @@
 #include <api/cli/DaphneUserConfig.h>
 #include <compiler/utils/CompilerUtils.h>
 
+#include <llvm/ADT/DenseSet.h>
 #include <mlir/Pass/Pass.h>
 
-#include <algorithm>
-#include <set>
 
 using namespace mlir;
 
 namespace {
-enum class Property { Sparsity, Symmetry, Sortedness, MinMax, Distinct, SparsityPattern };
-using PropertySet = std::set<Property>;
-
-PropertySet parseProperties(const std::vector<std::string> &names) {
-    PropertySet properties;
-    auto add = [&](Property property, std::initializer_list<const char *> aliases) {
-        if (std::any_of(aliases.begin(), aliases.end(), [&](const char *name) {
-                return std::find(names.begin(), names.end(), name) != names.end();
-            }))
-            properties.insert(property);
-    };
-    add(Property::Sparsity, {"sparsity"});
-    add(Property::Symmetry, {"symmetric"});
-    add(Property::Sortedness, {"sortness", "sorted"});
-    add(Property::MinMax, {"minmax", "min", "max"});
-    add(Property::Distinct, {"distinct", "numDistinct", "distinctCount"});
-    add(Property::SparsityPattern, {"sparsityPattern"});
-    return properties;
-}
-
-void emitAnalysis(OpBuilder &builder, Location loc, Value input, const PropertySet &properties) {
-    // Adapt the typed request to the existing operation/kernel ABI.
-    auto flag = [&](Property property) {
-        return builder.create<daphne::ConstantOp>(loc, properties.contains(property));
-    };
-    builder.create<daphne::AnalyzeDataOp>(loc, input, flag(Property::Sparsity), flag(Property::Symmetry),
-                                        flag(Property::Sortedness), flag(Property::MinMax), flag(Property::Distinct),
-                                        flag(Property::SparsityPattern));
+void emitAnalysis(OpBuilder &builder, Location loc, Value input, daphne::AnalysisProperty properties) {
+    builder.create<daphne::AnalyzeDataOp>(loc, input, properties);
 }
 
 void emitBoundsTransfer(OpBuilder &builder, Location loc, Value input, Value min, Value max) {
@@ -74,17 +47,16 @@ void emitBoundsTransfer(OpBuilder &builder, Location loc, Value input, Value min
 }
 } // namespace
 
-// Plan acquisition before context insertion; lowering supplies runtime arguments.
 struct AdaptiveAnalyzePropertiesPass : public PassWrapper<AdaptiveAnalyzePropertiesPass, OperationPass<func::FuncOp>> {
     explicit AdaptiveAnalyzePropertiesPass(const DaphneUserConfig &cfg) : userConfig(cfg) {}
 
     void runOnOperation() final;
     StringRef getArgument() const final { return "adaptive-analyze-props"; }
     StringRef getDescription() const final {
-        return "Insert analyzeData calls for adaptive property analysis based on adaptive_map";
+        return "Insert explicit automatic or consumer-requested property analysis";
     }
 
-    void processBlock(OpBuilder &builder, Block *b);
+    void processBlock(OpBuilder &builder, Block *b, llvm::DenseSet<Value> automaticallyAnalyzed = {});
     void acquireBounds(OpBuilder &builder, Location loc, Value input);
 
     const DaphneUserConfig &userConfig;
@@ -93,7 +65,7 @@ struct AdaptiveAnalyzePropertiesPass : public PassWrapper<AdaptiveAnalyzePropert
 void AdaptiveAnalyzePropertiesPass::runOnOperation() {
     func::FuncOp f = getOperation();
 
-    if (!userConfig.adaptiveAnalyze)
+    if (!userConfig.adaptiveAnalyze && !userConfig.automaticallyAnalyzeEverything)
         return;
 
     OpBuilder builder(f.getContext());
@@ -101,33 +73,42 @@ void AdaptiveAnalyzePropertiesPass::runOnOperation() {
         processBlock(builder, &block);
 }
 
-void AdaptiveAnalyzePropertiesPass::processBlock(OpBuilder &builder, Block *b) {
+void AdaptiveAnalyzePropertiesPass::processBlock(OpBuilder &builder, Block *b,
+                                                  llvm::DenseSet<Value> automaticallyAnalyzed) {
     for (Operation &op : llvm::make_early_inc_range(*b)) {
-        auto it = userConfig.adaptive_map.find(op.getName().stripDialect().str());
-        if (it != userConfig.adaptive_map.end()) {
-            const PropertySet request = parseProperties(it->second);
-            SmallVector<Value> inputsToAnalyze;
-            for (Value input : op.getOperands())
-                if (::mlir::isa<daphne::MatrixType, daphne::FrameType, daphne::ColumnType>(input.getType()))
-                    inputsToAnalyze.push_back(input);
-
-            // Each consumer gets a local request; do not reuse across branches.
-            for (Value input : inputsToAnalyze) {
+        // Static transfers already follow matrix producers. Acquire missing properties
+        // after attaching those known values, at the same points as the former runtime auto mode.
+        if (userConfig.automaticallyAnalyzeEverything) {
+            if (auto transfer = dyn_cast<daphne::TransferPropertiesOp>(&op)) {
+                builder.setInsertionPointAfter(&op);
+                emitAnalysis(builder, op.getLoc(), transfer.getArg(),
+                             daphne::AnalysisProperty::All);
+                automaticallyAnalyzed.insert(transfer.getArg());
+            }
+        }
+        auto exploitation = dyn_cast<daphne::PropertyExploitationOpInterface>(&op);
+        if (userConfig.adaptiveAnalyze && exploitation) {
+            SmallVector<daphne::PropertyOpportunity> opportunities;
+            exploitation.getPropertyOpportunities(opportunities);
+            for (const auto &opportunity : opportunities) {
+                Value input = op.getOperand(opportunity.operandIndex);
+                if (automaticallyAnalyzed.contains(input))
+                    continue;
                 builder.setInsertionPoint(&op);
-                auto remaining = request;
+                auto remaining = opportunity.properties;
                 auto mt = ::mlir::dyn_cast<daphne::MatrixType>(input.getType());
-                if (userConfig.use_vectorized_restricted && remaining.contains(Property::MinMax) && mt) {
+                if (userConfig.use_vectorized_restricted && daphne::bitEnumContainsAll(remaining, daphne::AnalysisProperty::MinMax) && mt) {
                     if (!mt.getMinValue().has_value() || !mt.getMaxValue().has_value())
                         acquireBounds(builder, op.getLoc(), input);
-                    remaining.erase(Property::MinMax);
+                    remaining = remaining & ~daphne::AnalysisProperty::MinMax;
                 }
-                if (!remaining.empty())
+                if (remaining != daphne::AnalysisProperty::None)
                     emitAnalysis(builder, op.getLoc(), input, remaining);
             }
         }
         for (Region &region : op.getRegions())
             for (Block &block : region.getBlocks())
-                processBlock(builder, &block);
+                processBlock(builder, &block, automaticallyAnalyzed);
     }
 }
 

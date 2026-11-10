@@ -15,6 +15,7 @@
  */
 
 #include <compiler/utils/CompilerUtils.h>
+#include <mlir/Dialect/SCF/IR/SCF.h>
 #include <ir/daphneir/Daphne.h>
 #include <parser/daphnedsl/DaphneDSLBuiltins.h>
 #include <runtime/local/datastructures/Frame.h>
@@ -1386,16 +1387,33 @@ antlrcpp::Any DaphneDSLBuiltins::build(mlir::Location loc, const std::string &fu
     }
 
     if (func == "analyzeData") {
-        checkNumArgsBetween(loc, func, numArgs, 7, 7);
-        mlir::Value arg = args[0];
-        mlir::Value analyzeSparsity = utils.castBoolIf(args[1]);
-        mlir::Value analyzeSymmetric = utils.castBoolIf(args[2]);
-        mlir::Value analyzeSortness = utils.castBoolIf(args[3]);
-        mlir::Value analyzeMinMax = utils.castBoolIf(args[4]);
-        mlir::Value analyzeDistinct = utils.castBoolIf(args[5]);
-        mlir::Value analyzeSparsityPattern = utils.castBoolIf(args[6]);
-
-        return builder.create<AnalyzeDataOp>(loc, arg, analyzeSparsity, analyzeSymmetric, analyzeSortness, analyzeMinMax, analyzeDistinct, analyzeSparsityPattern).getOperation();
+        checkNumArgsExact(loc, func, numArgs, 7);
+        using P = AnalysisProperty;
+        const P properties[] = {P::Sparsity, P::Symmetry, P::Sortedness, P::MinMax, P::Distinct, P::SparsityPattern};
+        P requested = P::None;
+        llvm::SmallVector<std::pair<mlir::Value, P>> dynamicRequests;
+        for (size_t i = 0; i < 6; ++i) {
+            mlir::Value flag = utils.castBoolIf(args[i + 1]);
+            auto [known, enabled] = CompilerUtils::isConstant<bool>(flag);
+            if (known) {
+                if (enabled)
+                    requested = requested | properties[i];
+            } else {
+                dynamicRequests.emplace_back(flag, properties[i]);
+            }
+        }
+        mlir::Operation *result = nullptr;
+        if (requested != P::None || dynamicRequests.empty())
+            result = builder.create<AnalyzeDataOp>(loc, args[0], requested).getOperation();
+        // Runtime conditions remain SSA values; only the acquisition request is static.
+        for (auto [condition, property] : dynamicRequests) {
+            result = builder.create<mlir::scf::IfOp>(loc, condition,
+                [&](mlir::OpBuilder &nested, mlir::Location nestedLoc) {
+                    nested.create<AnalyzeDataOp>(nestedLoc, args[0], property);
+                    nested.create<mlir::scf::YieldOp>(nestedLoc);
+                }).getOperation();
+        }
+        return result;
     }
     
     if (func == "startProfiling") {

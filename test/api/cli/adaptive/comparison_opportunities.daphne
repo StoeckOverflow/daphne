@@ -1,0 +1,5 @@
+A = readMatrix("test/api/cli/adaptive/sparse.csv");
+// Matrix-matrix comparisons have no property-based shortcut.
+print(sum(A < (A + 1.0)));
+// The numeric matrix-scalar comparison can exploit bounds and ordering.
+print(sum(A < 10.0));

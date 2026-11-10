@@ -49,14 +49,11 @@
 #include <iostream>
 #include <string>
 #include <unordered_map>
-#include <filesystem>
-#include <fstream>
 
 #include <csetjmp>
 #include <csignal>
 #include <cstring>
 #include <execinfo.h>
-#include <nlohmannjson/json.hpp>
 
 // global logger handle for this executable
 static std::unique_ptr<DaphneLogger> logger;
@@ -352,7 +349,7 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
                                   desc("A JSON file that contains the DAPHNE configuration"), value_desc("filename"),
                                   llvm::cl::init(configFileInitValue));
 
-    static opt<bool> enableStatistics("statistics", cat(daphneOptions), desc("Enables runtime statistics output."));
+    static opt<bool> enableStatistics("statistics", cat(daphneOptions), desc("Enables runtime statistics, kernel timings, and adaptive path diagnostics."));
 
     static opt<bool> enablePropertyRecording(
         "enable-property-recording", cat(daphneOptions),
@@ -391,11 +388,6 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
         init(aam_exact),
         ValueOptional
     );
-    // Adaptive map CLI
-    static opt<string> adaptiveMapFile("adaptive-map-file", cat(daphneOptions),
-        desc("Path to adaptive_map.json (kernel to candidate properties)"), value_desc("filename"), init("adaptive_map.json"));
-    static opt<bool> printAdaptiveMap("print-adaptive-map", cat(daphneOptions),
-        desc("Print the loaded adaptive kernel->property mapping at startup (for verification)"));
     // approx parameters
     static opt<unsigned> approxNDistinctK(
         "approx-ndistinct-k", cat(daphneOptions),
@@ -601,7 +593,6 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
 
     user_config.enable_statistics = enableStatistics;
     user_config.automaticallyAnalyzeEverything = automaticallyAnalyzeEverything;
-    user_config.adaptive_map_file = adaptiveMapFile.getValue();
 
     const bool adaptiveAnalyzePresent = adaptiveAnalyze.getNumOccurrences() > 0;
     user_config.adaptiveAnalyze = adaptiveAnalyzePresent;
@@ -688,49 +679,6 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
     // ************************************************************************
     // Create DaphneIrExecutor and get MLIR context
     // ************************************************************************
-
-    // Load adaptive map if requested
-    if(user_config.adaptiveAnalyze) {
-        try {
-            std::filesystem::path pathArg(user_config.adaptive_map_file);
-            std::filesystem::path resolved = pathArg;
-            if(!resolved.is_absolute()) {
-                std::filesystem::path libCandidate = std::filesystem::path(user_config.libdir) / pathArg;
-                if(std::filesystem::exists(libCandidate))
-                    resolved = libCandidate;
-            }
-
-            std::ifstream amifs(resolved);
-            if(!amifs.good()) {
-                spdlog::warn("adaptiveAnalyze enabled but cannot open adaptive map file: {}", resolved.string());
-            } else {
-                nlohmann::json j = nlohmann::json::parse(amifs);
-                decltype(user_config.adaptive_map) amap;
-                if(j.is_object()) {
-                    for(auto it = j.begin(); it != j.end(); ++it) {
-                        if(it.value().is_array()) {
-                            std::vector<std::string> props;
-                            for(const auto &v : it.value()) if(v.is_string()) props.push_back(v.get<std::string>());
-                            amap.emplace(it.key(), std::move(props));
-                        }
-                    }
-                }
-                user_config.adaptive_map = std::move(amap);
-
-                if (printAdaptiveMap) {
-                    nlohmann::json out = nlohmann::json::object();
-                    for (const auto &kv : user_config.adaptive_map) {
-                        out[kv.first] = kv.second;
-                    }
-                    std::cerr << "[adaptiveAnalyze] Loaded adaptive map from '" << resolved.string() << "': "
-                              << out.dump() << std::endl;
-                }
-
-            }
-        } catch(const std::exception &e) {
-            spdlog::warn("Failed to load adaptive map: {}", e.what());
-        }
-    }
 
     // Creates an MLIR context and loads the required MLIR dialects.
     DaphneIrExecutor executor(selectMatrixRepr, user_config);

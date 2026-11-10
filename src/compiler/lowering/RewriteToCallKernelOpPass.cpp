@@ -374,6 +374,21 @@ class KernelReplacement : public RewritePattern {
             kernelArgs.push_back(rewriteStr);
         }
 
+        // The high-level request is inherent operation information; retain the
+        // existing runtime ABI by materializing its six flags only during lowering.
+        if (auto analysis = llvm::dyn_cast<daphne::AnalyzeDataOp>(op)) {
+            using P = daphne::AnalysisProperty;
+            Value enabled, disabled;
+            for (P property : {P::Sparsity, P::Symmetry, P::Sortedness, P::MinMax, P::Distinct, P::SparsityPattern}) {
+                bool requested = daphne::bitEnumContainsAll(analysis.getRequestedProperties(), property);
+                Value &flag = requested ? enabled : disabled;
+                if (!flag)
+                    flag = rewriter.create<daphne::ConstantOp>(loc, requested);
+                kernelArgs.push_back(flag);
+                lookupArgTys.push_back(rewriter.getI1Type());
+            }
+        }
+
         // *****************************************************************************
         // Look up a matching kernel from the kernel catalog.
         // *****************************************************************************
