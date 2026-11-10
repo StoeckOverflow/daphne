@@ -23,7 +23,7 @@
 
 from daphne.script_building.dag import DAGNode, OutputType
 from daphne.script_building.script import DaphneDSLScript
-from daphne.utils.consts import BINARY_OPERATIONS, TMP_PATH, VALID_INPUT_TYPES, F64, F32, SI64, SI32, SI8, UI64, UI32, UI8
+from daphne.utils.consts import BINARY_OPERATIONS, TMP_PATH, VALID_INPUT_TYPES, F64, F32, SI64, SI32, SI8, UI64, UI32, UI16, UI8
 from daphne.utils.daphnelib import DaphneLib, DaphneLibResult
 from daphne.utils.helpers import create_params_string
 
@@ -300,6 +300,8 @@ class OperationNode(DAGNode):
             return ctypes.c_uint64
         elif vtc == UI32:
             return ctypes.c_uint32
+        elif vtc == UI16:
+            return ctypes.c_uint16
         elif vtc == UI8:
             return ctypes.c_uint8
         else:
@@ -321,6 +323,8 @@ class OperationNode(DAGNode):
             return np.uint64
         elif vtc == UI32:
             return np.uint32
+        elif vtc == UI16:
+            return np.uint16
         elif vtc == UI8:
             return np.uint8
         else:

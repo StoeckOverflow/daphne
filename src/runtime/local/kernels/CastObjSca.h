@@ -83,22 +83,31 @@ template <typename VTRes> struct CastObjSca<VTRes, Frame> {
         if (numCols != 1 || numRows != 1)
             throw std::runtime_error("Cast frame to scalar: frame shape should be 1x1");
 
-        VTRes res = VTRes(0);
-        auto colType = static_cast<unsigned int>(arg->getColumnType(0));
         const void *resVal = arg->getColumnRaw(0);
-        // Cast void* to the largest column type width (split integer and
-        // floating point interpretations) and then final cast to VTRes. This
-        // way we avoid DenseMatrix creation in Frame::getColumn().
-        // TODO It is dangerous to treat the value type code as an integer here,
-        // since this can easily break if we change the value type codes.
-        if (colType <= 5U)
-            res = static_cast<VTRes>(*reinterpret_cast<const int64_t *>(resVal));
-        else if (colType <= 7U)
-            res = static_cast<VTRes>(*reinterpret_cast<const double *>(resVal));
-        else
-            throw std::runtime_error("CastObjSca::apply: unknown value type code");
-
-        return res;
+        switch (arg->getColumnType(0)) {
+        case ValueTypeCode::SI8:
+            return static_cast<VTRes>(*static_cast<const int8_t *>(resVal));
+        case ValueTypeCode::SI32:
+            return static_cast<VTRes>(*static_cast<const int32_t *>(resVal));
+        case ValueTypeCode::SI64:
+            return static_cast<VTRes>(*static_cast<const int64_t *>(resVal));
+        case ValueTypeCode::UI8:
+            return static_cast<VTRes>(*static_cast<const uint8_t *>(resVal));
+        case ValueTypeCode::UI16:
+            return static_cast<VTRes>(*static_cast<const uint16_t *>(resVal));
+        case ValueTypeCode::UI32:
+            return static_cast<VTRes>(*static_cast<const uint32_t *>(resVal));
+        case ValueTypeCode::UI64:
+            return static_cast<VTRes>(*static_cast<const uint64_t *>(resVal));
+        case ValueTypeCode::F32:
+            return static_cast<VTRes>(*static_cast<const float *>(resVal));
+        case ValueTypeCode::F64:
+            return static_cast<VTRes>(*static_cast<const double *>(resVal));
+        case ValueTypeCode::I1:
+            return static_cast<VTRes>(*static_cast<const bool *>(resVal));
+        default:
+            throw std::runtime_error("CastObjSca::apply: unsupported value type code");
+        }
     }
 };
 

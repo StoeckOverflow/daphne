@@ -164,3 +164,12 @@ TEMPLATE_TEST_CASE("castObjSca, column to scalar, non-single-element", TAG_KERNE
     CHECK_THROWS(res = castObjSca<VT, Column<VT>>(arg, nullptr));
     DataObjectFactory::destroy(arg);
 }
+
+TEMPLATE_TEST_CASE("castObjSca preserves numeric frame column types", TAG_KERNELS,
+                   int8_t, int32_t, int64_t, uint8_t, uint32_t, uint64_t, float, double) {
+    auto *column = genGivenVals<DenseMatrix<TestType>>(1, {TestType(7)});
+    std::vector<Structure *> columns = {column};
+    auto *frame = DataObjectFactory::create<Frame>(columns, nullptr);
+    CHECK(castObjSca<double>(frame, nullptr) == 7.);
+    DataObjectFactory::destroy(frame, column);
+}
