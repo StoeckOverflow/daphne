@@ -137,27 +137,15 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
         std::optional<double> maxValue = std::nullopt;
         ssize_t distinct = -1;
         mlir::Type elementType;
-        if (parser.parseLess()) {
+        SmallVector<int64_t, 2> dimensions;
+        if (parser.parseLess() || parser.parseDimensionList(dimensions) || parser.parseType(elementType))
+            return nullptr;
+        if (dimensions.size() != 2) {
+            parser.emitError(parser.getCurrentLocation(), "expected two matrix dimensions");
             return nullptr;
         }
-        if (parser.parseOptionalQuestion()) {
-            // Parse #rows if there was no '?'.
-            if (parser.parseInteger<ssize_t>(numRows)) {
-                return nullptr;
-            }
-        }
-        if (parser.parseXInDimensionList()) {
-            return nullptr;
-        }
-        if (parser.parseOptionalQuestion()) {
-            // Parse #cols if there was no '?'.
-            if (parser.parseInteger<ssize_t>(numCols)) {
-                return nullptr;
-            }
-        }
-        if (parser.parseXInDimensionList() || parser.parseType(elementType)) {
-            return nullptr;
-        }
+        numRows = dimensions[0] == ShapedType::kDynamic ? -1 : dimensions[0];
+        numCols = dimensions[1] == ShapedType::kDynamic ? -1 : dimensions[1];
         // additional properties (only print/read them when present, as this
         // will probably get more and more)
         while (succeeded(parser.parseOptionalColon())) {
@@ -187,14 +175,20 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
                     return nullptr;
                 }
                 sortness = stringToMatrixSortness(sortnessStr.str());
-            } else if (succeeded(parser.parseOptionalKeyword("distnct"))) {
-                if (distinct != -1) {
-                    // read sparsity twice
+            } else if (succeeded(parser.parseOptionalKeyword("min"))) {
+                double value;
+                if (minValue || parser.parseLSquare() || parser.parseFloat(value) || parser.parseRSquare())
                     return nullptr;
-                }
-                if (parser.parseLSquare() || parser.parseFloat(sparsity) || parser.parseRSquare()) {
+                minValue = value;
+            } else if (succeeded(parser.parseOptionalKeyword("max"))) {
+                double value;
+                if (maxValue || parser.parseLSquare() || parser.parseFloat(value) || parser.parseRSquare())
                     return nullptr;
-                }
+                maxValue = value;
+            } else if (succeeded(parser.parseOptionalKeyword("dist"))) {
+                if (distinct != -1 || parser.parseLSquare() || parser.parseInteger(distinct) ||
+                    parser.parseRSquare() || distinct < 0)
+                    return nullptr;
             } else {
                 return nullptr;
             }
@@ -285,17 +279,17 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         if (representation != MatrixRepresentation::Default) {
             os << ":rep[" << matrixRepresentationToString(representation) << ']';
         }
-        if (symmetric == BoolOrUnknown::Unknown) {
+        if (symmetric != BoolOrUnknown::Unknown) {
             os << ":symmetric[" << boolOrUnknownToString(symmetric) << ']';
         }
-        if (sortness == MatrixSortness::Unknown) {
+        if (sortness != MatrixSortness::Unknown) {
             os << ":sortness[" << matrixSortnessToString(sortness) << ']';
         }
-        if (minValue != -1 || maxValue != -1) {
-            os << ":min[" << minValue << ']';
-            os << ":max[" << maxValue << ']';
-        }
-        if (distinct != -1.0) {
+        if (minValue)
+            os << ":min[" << *minValue << ']';
+        if (maxValue)
+            os << ":max[" << *maxValue << ']';
+        if (distinct != -1) {
             os << ":dist[" << distinct << ']';
         }
         os << '>';
