@@ -122,7 +122,8 @@ struct EwBinaryMat<DenseMatrix<VTres>, DenseMatrix<VTlhs>, DenseMatrix<VTrhs>> {
         // Only output timing for matrices with > 1000 elements (avoid tiny helper matrices)
         size_t totalElements = numRowsLhs * numColsLhs;
         if (totalElements > 1) {
-            std::cerr << "[KERNEL_TIME] EwBinaryMat: " << std::fixed << std::setprecision(6)
+            if (ctx && ctx->getUserConfig().enable_statistics)
+                std::cerr << "[KERNEL_TIME] EwBinaryMat: " << std::fixed << std::setprecision(6)
                       << duration.count() << " seconds (DenseMatrix " << numRowsLhs << "x" << numColsLhs << ")" << std::endl;
         }
     }
@@ -200,7 +201,8 @@ template <typename VT> struct EwBinaryMat<CSRMatrix<VT>, CSRMatrix<VT>, CSRMatri
                 auto exec_end_time = std::chrono::high_resolution_clock::now();
                 auto exec_duration = std::chrono::duration_cast<std::chrono::duration<double>>(exec_end_time - exec_start_time);
                 
-                std::cerr << "[KERNEL_TIME] EwBinaryMat: " << std::fixed << std::setprecision(6)
+                if (ctx && ctx->getUserConfig().enable_statistics)
+                    std::cerr << "[KERNEL_TIME] EwBinaryMat: " << std::fixed << std::setprecision(6)
                           << exec_duration.count() << " seconds (CSR ADD_optimized, analysis: "
                           << analysis_duration.count() << "s)" << std::endl;
                 return;
@@ -233,7 +235,8 @@ template <typename VT> struct EwBinaryMat<CSRMatrix<VT>, CSRMatrix<VT>, CSRMatri
                 auto exec_end_time = std::chrono::high_resolution_clock::now();
                 auto exec_duration = std::chrono::duration_cast<std::chrono::duration<double>>(exec_end_time - exec_start_time);
                 
-                std::cerr << "[KERNEL_TIME] EwBinaryMat: " << std::fixed << std::setprecision(6)
+                if (ctx && ctx->getUserConfig().enable_statistics)
+                    std::cerr << "[KERNEL_TIME] EwBinaryMat: " << std::fixed << std::setprecision(6)
                           << exec_duration.count() << " seconds (CSR MUL_optimized, analysis: "
                           << analysis_duration.count() << "s)" << std::endl;
                 return;
@@ -375,7 +378,8 @@ template <typename VT> struct EwBinaryMat<CSRMatrix<VT>, CSRMatrix<VT>, CSRMatri
         auto exec_duration = std::chrono::duration_cast<std::chrono::duration<double>>(exec_end_time - exec_start_time);
         
         const char* op_name = (opCode == BinaryOpCode::ADD) ? "ADD" : "MUL";
-        std::cerr << "[KERNEL_TIME] EwBinaryMat: " << std::fixed << std::setprecision(6)
+        if (ctx && ctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] EwBinaryMat: " << std::fixed << std::setprecision(6)
                   << exec_duration.count() << " seconds (CSR " << op_name << "_standard, analysis: "
                   << analysis_duration.count() << "s)" << std::endl;
 

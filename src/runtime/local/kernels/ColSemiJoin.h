@@ -62,7 +62,7 @@ private:
     static size_t colSemiJoinCore(VTPos *valuesResLhsPos,
                                    const VTData *valuesLhsData, const VTData *valuesRhsData,
                                    size_t numLhsData, size_t numRhsData,
-                                   VTData rhsMin, VTData rhsMax) {
+                                   VTData rhsMin, VTData rhsMax, DCTX(ctx)) {
         auto buildStart = std::chrono::steady_clock::now();
         
         // Build phase - use narrow key type for hash set
@@ -122,7 +122,8 @@ private:
             auto probeEnd = std::chrono::steady_clock::now();
             double probeTime = std::chrono::duration<double>(probeEnd - probeStart).count();
             double filterRate = (rangeCheckCount - lookupCount) * 100.0 / rangeCheckCount;
-            std::cerr << "  [filtered " << std::fixed << std::setprecision(1) 
+            if (ctx && ctx->getUserConfig().enable_statistics)
+                std::cerr << "  [filtered " << std::fixed << std::setprecision(1)
                       << filterRate << "% lookups]" << std::endl;
             
             return posRes;
@@ -165,28 +166,28 @@ public:
                     keyTypePath = "uint8_t";
                     posRes = colSemiJoinCore<uint8_t>(valuesResLhsPos, 
                                                        valuesLhsData, valuesRhsData, 
-                                                       numLhsData, numRhsData, rhsMin, rhsMax);
+                                                       numLhsData, numRhsData, rhsMin, rhsMax, ctx);
                 }
                 // Dispatch to uint16_t keys if range fits
                 else if (range <= 65535.0) {
                     keyTypePath = "uint16_t";
                     posRes = colSemiJoinCore<uint16_t>(valuesResLhsPos, 
                                                         valuesLhsData, valuesRhsData, 
-                                                        numLhsData, numRhsData, rhsMin, rhsMax);
+                                                        numLhsData, numRhsData, rhsMin, rhsMax, ctx);
                 }
                 // Dispatch to uint32_t keys if range fits
                 else if (range <= 4294967295.0) {
                     keyTypePath = "uint32_t";
                     posRes = colSemiJoinCore<uint32_t>(valuesResLhsPos, 
                                                         valuesLhsData, valuesRhsData, 
-                                                        numLhsData, numRhsData, rhsMin, rhsMax);
+                                                        numLhsData, numRhsData, rhsMin, rhsMax, ctx);
                 }
                 else {
                     keyTypePath = "original-type";
                     // Use original VTData type
                     posRes = colSemiJoinCore<VTData>(valuesResLhsPos, 
                                                       valuesLhsData, valuesRhsData, 
-                                                      numLhsData, numRhsData, rhsMin, rhsMax);
+                                                      numLhsData, numRhsData, rhsMin, rhsMax, ctx);
                 }
             }
             else {
@@ -195,7 +196,7 @@ public:
                 posRes = colSemiJoinCore<VTData>(valuesResLhsPos, 
                                                   valuesLhsData, valuesRhsData, 
                                                   numLhsData, numRhsData, 
-                                                  static_cast<VTData>(0), static_cast<VTData>(0));
+                                                  static_cast<VTData>(0), static_cast<VTData>(0), ctx);
             }
         }
         else {
@@ -204,14 +205,15 @@ public:
             posRes = colSemiJoinCore<VTData>(valuesResLhsPos, 
                                               valuesLhsData, valuesRhsData, 
                                               numLhsData, numRhsData, 
-                                              VTData{}, VTData{});
+                                              VTData{}, VTData{}, ctx);
         }
 
         resLhsPos->shrinkNumRows(posRes);
 
         auto endTime = std::chrono::steady_clock::now();
         double seconds = std::chrono::duration<double>(endTime - startTime).count();
-        std::cerr << "[KERNEL_TIME] ColSemiJoin: " << std::fixed << std::setprecision(6) 
+        if (ctx && ctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] ColSemiJoin: " << std::fixed << std::setprecision(6)
                   << seconds << " seconds (Column " << numLhsData << "x" << numRhsData 
                   << ", key=" << keyTypePath << ")" << std::endl;
     }

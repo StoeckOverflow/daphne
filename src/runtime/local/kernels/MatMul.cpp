@@ -311,7 +311,8 @@ void MatMul<DenseMatrix<VT>, DenseMatrix<VT>, DenseMatrix<VT>>::apply(DenseMatri
         // Log timing for sparse-aware path
         auto endTime = std::chrono::high_resolution_clock::now();
         double seconds = std::chrono::duration<double>(endTime - startTime).count();
-        std::cerr << "[KERNEL_TIME] MatMul: " << std::fixed << std::setprecision(6)
+        if (dctx && dctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] MatMul: " << std::fixed << std::setprecision(6)
                   << seconds << " seconds (sparse-aware, sparsity=" << lhs->sparsity << ")" << std::endl;
     } else {
         // Original MatMul implementation based on OpenBLAS.
@@ -358,7 +359,8 @@ void MatMul<DenseMatrix<VT>, DenseMatrix<VT>, DenseMatrix<VT>>::apply(DenseMatri
         // Log timing for dense BLAS path
         auto endTime = std::chrono::high_resolution_clock::now();
         double seconds = std::chrono::duration<double>(endTime - startTime).count();
-        std::cerr << "[KERNEL_TIME] MatMul: " << std::fixed << std::setprecision(6)
+        if (dctx && dctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] MatMul: " << std::fixed << std::setprecision(6)
                   << seconds << " seconds (dense-blas, sparsity=" << lhs->sparsity << ")" << std::endl;
     }
 }

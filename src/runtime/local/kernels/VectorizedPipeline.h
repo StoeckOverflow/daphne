@@ -73,7 +73,8 @@ template <class DTRes> struct VectorizedPipeline {
         const double secs = std::chrono::duration<double>(t1 - t0).count();
         
         // Output to stderr for experiment tracking
-        std::cerr << "[KERNEL_TIME] VectorizedPipeline: " << std::fixed << std::setprecision(6) 
+        if (ctx && ctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] VectorizedPipeline: " << std::fixed << std::setprecision(6)
                   << secs << " seconds" << std::endl;
 
         delete[] outputs2;

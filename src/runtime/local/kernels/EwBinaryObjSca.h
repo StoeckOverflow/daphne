@@ -89,7 +89,8 @@ struct EwBinaryObjSca<DenseMatrix<VTRes>, DenseMatrix<VTLhs>, VTRhs> {
             if (applyBoundsOptimization(opCode, res, hasMin, hasMax, minValue, maxValue, rhs, numRows, numCols)) {
                 auto endTime = std::chrono::high_resolution_clock::now();
                 double seconds = std::chrono::duration<double>(endTime - startTime).count();
-                std::cerr << "[KERNEL_TIME] EwBinaryObjSca: " << std::fixed << std::setprecision(6)
+                if (ctx && ctx->getUserConfig().enable_statistics)
+                    std::cerr << "[KERNEL_TIME] EwBinaryObjSca: " << std::fixed << std::setprecision(6)
                           << seconds << " seconds (bounds_optimization)" << std::endl;
                 return;
             }
@@ -100,14 +101,16 @@ struct EwBinaryObjSca<DenseMatrix<VTRes>, DenseMatrix<VTLhs>, VTRhs> {
             applySortedOptimization(opCode, lhs, res, rhs, sortness, numRows, numCols, ctx);
             auto endTime = std::chrono::high_resolution_clock::now();
             double seconds = std::chrono::duration<double>(endTime - startTime).count();
-            std::cerr << "[KERNEL_TIME] EwBinaryObjSca: " << std::fixed << std::setprecision(6)
+            if (ctx && ctx->getUserConfig().enable_statistics)
+                std::cerr << "[KERNEL_TIME] EwBinaryObjSca: " << std::fixed << std::setprecision(6)
                       << seconds << " seconds (binary_search)" << std::endl;
         } else {
             // Fallback: Process each element one by one
             applyElementWise(opCode, lhs, res, rhs, numRows, numCols, ctx);
             auto endTime = std::chrono::high_resolution_clock::now();
             double seconds = std::chrono::duration<double>(endTime - startTime).count();
-            std::cerr << "[KERNEL_TIME] EwBinaryObjSca: " << std::fixed << std::setprecision(6)
+            if (ctx && ctx->getUserConfig().enable_statistics)
+                std::cerr << "[KERNEL_TIME] EwBinaryObjSca: " << std::fixed << std::setprecision(6)
                       << seconds << " seconds (elementwise)" << std::endl;
         }
     }

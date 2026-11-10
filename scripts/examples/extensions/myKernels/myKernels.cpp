@@ -247,7 +247,7 @@ extern "C" {
                 float val = valuesLhs[c] + valuesRhs[c];
                 valuesRes[c] = val;
 
-                // Automated piggyback: only analyzes properties specified in adaptive_map
+                // Automated piggyback: only analyzes requested properties
                 piggyback.update(val);
             }
             valuesLhs += lhs->getRowSkip();
@@ -259,7 +259,8 @@ extern "C" {
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
-        std::cerr << "[KERNEL_TIME] myEwAdd: " << std::fixed << std::setprecision(6)
+        if (ctx && ctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] myEwAdd: " << std::fixed << std::setprecision(6)
                   << duration.count() << " seconds" << std::endl;
     }
 
@@ -299,7 +300,7 @@ extern "C" {
                 double val = valuesLhs[c] + valuesRhs[c];
                 valuesRes[c] = val;
 
-                // Automated piggyback: only analyzes properties specified in adaptive_map
+                // Automated piggyback: only analyzes requested properties
                 piggyback.update(val);
             }
             valuesLhs += lhs->getRowSkip();
@@ -311,7 +312,8 @@ extern "C" {
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
-        std::cerr << "[KERNEL_TIME] myEwAddDouble: " << std::fixed << std::setprecision(6)
+        if (ctx && ctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] myEwAddDouble: " << std::fixed << std::setprecision(6)
                   << duration.count() << " seconds" << std::endl;
     }
 
@@ -350,7 +352,7 @@ extern "C" {
                 int64_t val = valuesLhs[c] + valuesRhs[c];
                 valuesRes[c] = val;
 
-                // Automated piggyback: only analyzes properties specified in adaptive_map
+                // Automated piggyback: only analyzes requested properties
                 piggyback.update(val);
             }
             valuesLhs += lhs->getRowSkip();
@@ -362,7 +364,8 @@ extern "C" {
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - start_time);
-        std::cerr << "[KERNEL_TIME] myEwAddInt64: " << std::fixed << std::setprecision(6)
+        if (ctx && ctx->getUserConfig().enable_statistics)
+            std::cerr << "[KERNEL_TIME] myEwAddInt64: " << std::fixed << std::setprecision(6)
                   << duration.count() << " seconds" << std::endl;
     }
 
