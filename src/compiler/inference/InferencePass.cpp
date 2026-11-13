@@ -525,6 +525,8 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
   public:
     InferencePass(daphne::InferenceConfig cfg) : cfg(cfg) {}
 
+    void getDependentDialects(DialectRegistry &registry) const override { registry.insert<scf::SCFDialect>(); }
+
     void runOnOperation() override {
         func::FuncOp f = getOperation();
         try {

@@ -148,6 +148,16 @@ TEST_CASE("TypeInferenceTraits", TAG_INFERENCE) {
     [[maybe_unused]] Type si8 = builder.getIntegerType(8, true);
     [[maybe_unused]] Type bl = builder.getI1Type();
 
+    SECTION("distinct count after type and shape changes") {
+        auto matrix = daphne::MatrixType::get(&ctx, f64).withShape(2, 3).withDistinct(4);
+        CHECK(matrix.withElementType(f64) == matrix);
+        CHECK(matrix.withElementType(f32).getDistinct() == -1);
+        CHECK(matrix.withShape(2, 3) == matrix);
+        CHECK(matrix.withShape(3, 2).getDistinct() == -1);
+        CHECK(matrix.withShape(-1, 3).getDistinct() == -1);
+        CHECK(matrix.withSparsity(0.5).getDistinct() == 4);
+    }
+
     // A few matrix types for convenient use below.
     [[maybe_unused]] daphne::MatrixType matu = daphne::MatrixType::get(&ctx, u);
     [[maybe_unused]] daphne::MatrixType matstr = daphne::MatrixType::get(&ctx, str);

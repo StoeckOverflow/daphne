@@ -31,6 +31,55 @@ using namespace mlir::OpTrait;
 // Inference interface implementations
 // ****************************************************************************
 
+namespace mlir::daphne {
+namespace {
+
+enum class FillExtent { Unknown, Empty, Nonempty };
+FillExtent extent(FillOp op) {
+    auto [knownRows, rows] = CompilerUtils::isConstant<ssize_t>(op.getNumRows());
+    auto [knownCols, cols] = CompilerUtils::isConstant<ssize_t>(op.getNumCols());
+    if ((knownRows && rows < 0) || (knownCols && cols < 0))
+        return FillExtent::Unknown;
+    if ((knownRows && rows == 0) || (knownCols && cols == 0))
+        return FillExtent::Empty;
+    return knownRows && knownCols ? FillExtent::Nonempty : FillExtent::Unknown;
+}
+
+Attribute numericConstant(FillOp op) {
+    auto matrix = dyn_cast<MatrixType>(op.getRes().getType());
+    auto constant = op.getArg().getDefiningOp<ConstantOp>();
+    if (!matrix || matrix.getElementType() != op.getArg().getType() || !constant)
+        return {};
+    auto value = constant.getValue();
+    if (auto fp = dyn_cast<FloatAttr>(value)) {
+        if ((fp.getType().isF32() || fp.getType().isF64()) && !fp.getValue().isNaN())
+            return value;
+    } else if (auto integer = dyn_cast<IntegerAttr>(value)) {
+        auto type = dyn_cast<IntegerType>(integer.getType());
+        if (type && (type.getWidth() == 1 ||
+                     (!type.isSignless() && (type.getWidth() == 8 || type.getWidth() == 32 || type.getWidth() == 64))))
+            return value;
+    }
+    return {};
+}
+} // namespace
+
+std::vector<ssize_t> FillOp::inferDistinct() {
+    if (!numericConstant(*this))
+        return {-1};
+    switch (extent(*this)) {
+    case FillExtent::Empty:
+        return {0};
+    case FillExtent::Nonempty:
+        return {1};
+    case FillExtent::Unknown:
+        return {-1};
+    }
+    return {-1};
+}
+
+} // namespace mlir::daphne
+
 std::vector<ssize_t> daphne::SeqOp::inferDistinct() {
     Type fromTy = getFrom().getType();
     if (fromTy.isF64()) {

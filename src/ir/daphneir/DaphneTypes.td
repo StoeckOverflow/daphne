@@ -81,14 +81,17 @@ def Matrix : Daphne_Type<"Matrix"> {
     let extraClassDeclaration = [{
         // The following methods return a MatrixType with the same parameters
         // as this MatrixType, except for one parameter, which is replaced by a
-        // new value.
+        // new value. Changing the element type or shape resets the distinct
+        // count; passing the existing element type or shape preserves it.
 
         ::mlir::daphne::MatrixType withElementType(::mlir::Type elementType) {
-            return get(getContext(), elementType, getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), getDistinct());
+            if (elementType == getElementType()) return *this;
+            return get(getContext(), elementType, getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), -1);
         }
 
         ::mlir::daphne::MatrixType withShape(ssize_t numRows, ssize_t numCols) {
-            return get(getContext(), getElementType(), numRows, numCols, getSparsity(), getRepresentation(), getSymmetric(), getDistinct());
+            if (numRows == getNumRows() && numCols == getNumCols()) return *this;
+            return get(getContext(), getElementType(), numRows, numCols, getSparsity(), getRepresentation(), getSymmetric(), -1);
         }
 
         ::mlir::daphne::MatrixType withSparsity(double sparsity) {
