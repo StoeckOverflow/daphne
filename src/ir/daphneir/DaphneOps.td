@@ -24,6 +24,7 @@ include "ir/daphneir/DaphneTypes.td"
 include "ir/daphneir/DaphneDistributableOpInterface.td"
 include "ir/daphneir/DaphneInferFrameLabelsOpInterface.td"
 include "ir/daphneir/DaphneInferMinMaxOpInterface.td"
+include "ir/daphneir/DaphneInferSortednessOpInterface.td"
 include "ir/daphneir/DaphneInferSymmetricOpInterface.td"
 include "ir/daphneir/DaphneInferShapeOpInterface.td"
 include "ir/daphneir/DaphneInferShapeTraits.td"
@@ -347,7 +348,7 @@ class Daphne_EwBinaryOp<string name, Type scalarType, list<Trait> traits = []>
 // ----------------------------------------------------------------------------
 
 // TODO Make EwAddOp Commutative again (see #449).
-def Daphne_EwAddOp    : Daphne_EwBinaryOp<"ewAdd", AnyScalar, [ValueTypeFromArgs, CastArgsToResType/*, Commutative*/, EwSparseIfBoth, CUDASupport]> {
+def Daphne_EwAddOp    : Daphne_EwBinaryOp<"ewAdd", AnyScalar, [ValueTypeFromArgs, CastArgsToResType/*, Commutative*/, EwSparseIfBoth, CUDASupport, DeclareOpInterfaceMethods<InferSortednessOpInterface>]> {
     let hasCanonicalizeMethod = 1;
 }
 def Daphne_EwSubOp    : Daphne_EwBinaryOp<"ewSub", NumScalar, [ValueTypeFromArgs, CastArgsToResType, EwSparseIfBoth, CUDASupport]> {
@@ -403,7 +404,7 @@ class Daphne_EwCmpOp<string name, Type inputScalarType, list<Trait> traits = []>
 
 def Daphne_EwEqOp  : Daphne_EwCmpOp<"ewEq" , AnyScalar, [Commutative]>;
 def Daphne_EwNeqOp : Daphne_EwCmpOp<"ewNeq", AnyScalar, [Commutative, CUDASupport, DeclareOpInterfaceMethods<InferMinMaxOpInterface>]>;
-def Daphne_EwLtOp  : Daphne_EwCmpOp<"ewLt" , AnyScalar, [DeclareOpInterfaceMethods<InferMinMaxOpInterface>]>;
+def Daphne_EwLtOp  : Daphne_EwCmpOp<"ewLt" , AnyScalar, [DeclareOpInterfaceMethods<InferMinMaxOpInterface>, DeclareOpInterfaceMethods<InferSortednessOpInterface>]>;
 def Daphne_EwLeOp  : Daphne_EwCmpOp<"ewLe" , AnyScalar>;
 def Daphne_EwGtOp  : Daphne_EwCmpOp<"ewGt" , AnyScalar>;
 def Daphne_EwGeOp  : Daphne_EwCmpOp<"ewGe" , AnyScalar>;
@@ -803,7 +804,7 @@ def Daphne_OrderOp : Daphne_Op<"order", [
     DeclareOpInterfaceMethods<InferFrameLabelsOpInterface>,
     DeclareOpInterfaceMethods<InferTypesOpInterface>, // due to possibility of returning indexes
     SameVariadicOperandSize,
-    DeclareOpInterfaceMethods<InferShapeOpInterface>, DeclareOpInterfaceMethods<InferMinMaxOpInterface>]> {
+    DeclareOpInterfaceMethods<InferShapeOpInterface>, DeclareOpInterfaceMethods<InferMinMaxOpInterface>, DeclareOpInterfaceMethods<InferSortednessOpInterface>]> {
     // TODO Maybe colIdxs and ascs should be attributes.
     let arguments = (ins MatrixOrFrame:$arg, Variadic<Size>:$colIdxs, Variadic<BoolScalar>:$ascs, BoolScalar:$returnIdxs);
     let results = (outs MatrixOrFrame:$res);
@@ -1043,7 +1044,7 @@ def Daphne_CTableOp : Daphne_Op<"ctable", [
 def Daphne_SyrkOp : Daphne_Op<"syrk", [
     TypeFromFirstArg,
     DeclareOpInterfaceMethods<VectorizableOpInterface>,
-    NumRowsFromArgNumCols, NumColsFromArg, CUDASupport,FPGAOPENCLSupport, 
+    NumRowsFromArgNumCols, NumColsFromArg, CUDASupport,FPGAOPENCLSupport,
     CastFirstArgToResType
 ]> {
     let summary = [{Performs the operation `t(A) @ A` if `transLeft` is `true`; or `A @ t(A)`, otherwise.}];
@@ -2015,7 +2016,7 @@ def Daphne_LengthOp : Daphne_Op<"length", [
     DataTypeSca, ValueTypeSize
 ]> {
     let summary = "Returns the number of elements in the given list";
-    
+
     let arguments = (ins ListOrU:$arg);
     let results = (outs Size:$res);
 }
@@ -2024,7 +2025,7 @@ def Daphne_AppendOp : Daphne_Op<"append", [
     TypeFromFirstArg
 ]> {
     let summary = "Appends the given element to the end of the given list";
-    
+
     let arguments = (ins ListOrU:$argList, MatrixOrU:$elem);
     let results = (outs ListOrU:$resList);
 }
@@ -2033,7 +2034,7 @@ def Daphne_RemoveOp : Daphne_Op<"remove", [
     DeclareOpInterfaceMethods<InferTypesOpInterface>
 ]> {
     let summary = "Removes and returns the element at the specified index from the given list";
-    
+
     let arguments = (ins ListOrU:$argList, Size:$idx);
     let results = (outs ListOrU:$resList, MatrixOrU:$elem);
 }

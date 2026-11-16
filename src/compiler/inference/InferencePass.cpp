@@ -32,10 +32,11 @@ using namespace mlir;
 
 daphne::InferenceConfig::InferenceConfig(bool partialInferenceAllowed, bool typeInference, bool shapeInference,
                                          bool frameLabelInference, bool sparsityInference, bool symmetricInference,
-                                         bool minMaxInference)
+                                         bool minMaxInference, bool sortednessInference)
     : partialInferenceAllowed(partialInferenceAllowed), typeInference(typeInference), shapeInference(shapeInference),
       frameLabelInference(frameLabelInference), sparsityInference(sparsityInference),
-      symmetricInference(symmetricInference), minMaxInference(minMaxInference) {}
+      symmetricInference(symmetricInference), minMaxInference(minMaxInference),
+      sortednessInference(sortednessInference) {}
 
 namespace {
 void castOperandIf(OpBuilder &builder, Operation *op, size_t operandIdx, Type type) {
@@ -76,6 +77,8 @@ Type getTypeWithCommonInfo(Type t1, Type t2) {
         const daphne::MatrixRepresentation repr2 = mat2.getRepresentation();
         const BoolOrUnknown sym1 = mat1.getSymmetric();
         const BoolOrUnknown sym2 = mat2.getSymmetric();
+        const MatrixSortedness sortedness1 = mat1.getSortedness();
+        const MatrixSortedness sortedness2 = mat2.getSortedness();
         const std::optional<double> minValue1 = mat1.getMinValue();
         const std::optional<double> minValue2 = mat2.getMinValue();
         const std::optional<double> maxValue1 = mat1.getMaxValue();
@@ -84,8 +87,9 @@ Type getTypeWithCommonInfo(Type t1, Type t2) {
             ctx, (vt1 == vt2) ? vt1 : u, (nr1 == nr2) ? nr1 : -1, (nc1 == nc2) ? nc1 : -1,
             // TODO Maybe do approximate comparison of floating-point values.
             (sp1 == sp2) ? sp1 : -1, (repr1 == repr2) ? repr1 : daphne::MatrixRepresentation::Default,
-            (sym1 == sym2) ? sym1 : BoolOrUnknown::Unknown, (minValue1 == minValue2) ? minValue1 : std::nullopt,
-            (maxValue1 == maxValue2) ? maxValue1 : std::nullopt);
+            (sym1 == sym2) ? sym1 : BoolOrUnknown::Unknown,
+            (sortedness1 == sortedness2) ? sortedness1 : MatrixSortedness::Unknown,
+            (minValue1 == minValue2) ? minValue1 : std::nullopt, (maxValue1 == maxValue2) ? maxValue1 : std::nullopt);
     } else if (frm1 && frm2) { // both types are frames
         const std::vector<Type> cts1 = frm1.getColumnTypes();
         const std::vector<Type> cts2 = frm2.getColumnTypes();
@@ -272,6 +276,27 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
                         const Type rt = rv.getType();
                         if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
                             rv.setType(mt.withMinMax(minValue, maxValue));
+                    }
+                }
+            }
+            if (cfg.sortednessInference && returnsUnknownSortedness(op)) {
+                // Try to infer the sortedness of all results of this operation.
+                std::vector<MatrixSortedness> sortednesses = daphne::tryInferSortedness(op);
+                const size_t numRes = op->getNumResults();
+                if (sortednesses.size() != numRes)
+                    throw ErrorHandler::compilerError(
+                        op, "InferencePass",
+                        "sortedness inference for op " + op->getName().getStringRef().str() + " returned " +
+                            std::to_string(sortednesses.size()) + " entries, but the op has " + std::to_string(numRes) +
+                            " results");
+                // Set the inferred values on all results of this operation.
+                for (size_t i = 0; i < numRes; i++) {
+                    const MatrixSortedness sortedness = sortednesses[i];
+                    if (llvm::isa<mlir::daphne::MatrixType>(op->getResultTypes()[i])) {
+                        Value rv = op->getResult(i);
+                        const Type rt = rv.getType();
+                        if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                            rv.setType(mt.withSortedness(sortedness));
                     }
                 }
             }
@@ -522,6 +547,14 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
         return llvm::any_of(op->getResultTypes(), [](Type rt) {
             if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
                 return !mt.getMinValue().has_value() || !mt.getMaxValue().has_value();
+            return false;
+        });
+    }
+
+    static bool returnsUnknownSortedness(Operation *op) {
+        return llvm::any_of(op->getResultTypes(), [](Type rt) {
+            if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                return mt.getSortedness() == MatrixSortedness::Unknown;
             return false;
         });
     }

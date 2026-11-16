@@ -27,6 +27,7 @@ namespace mlir::daphne {
 // Forward declarations of enums
 enum class MatrixRepresentation;
 enum class BoolOrUnknown;
+enum class MatrixSortedness;
 namespace detail {
 
 struct MatrixTypeStorage : public ::mlir::TypeStorage {
@@ -37,12 +38,12 @@ struct MatrixTypeStorage : public ::mlir::TypeStorage {
     constexpr static const double epsilon = 1e-6;
 
     MatrixTypeStorage(::mlir::Type elementType, ssize_t numRows, ssize_t numCols, double sparsity,
-                      MatrixRepresentation representation, BoolOrUnknown symmetric, std::optional<double> minValue,
-                      std::optional<double> maxValue);
+                      MatrixRepresentation representation, BoolOrUnknown symmetric, MatrixSortedness sortedness,
+                      std::optional<double> minValue, std::optional<double> maxValue);
 
     /// The hash key is a tuple of the parameter types.
     using KeyTy = std::tuple<::mlir::Type, ssize_t, ssize_t, double, MatrixRepresentation, BoolOrUnknown,
-                             std::optional<double>, std::optional<double>>;
+                             MatrixSortedness, std::optional<double>, std::optional<double>>;
     bool operator==(const KeyTy &tblgenKey) const;
     static ::llvm::hash_code hashKey(const KeyTy &tblgenKey);
 
@@ -57,6 +58,7 @@ struct MatrixTypeStorage : public ::mlir::TypeStorage {
     double sparsity;
     MatrixRepresentation representation;
     BoolOrUnknown symmetric;
+    MatrixSortedness sortedness;
     std::optional<double> minValue;
     std::optional<double> maxValue;
 };

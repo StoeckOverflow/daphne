@@ -76,11 +76,14 @@
 namespace mlir::daphne {
 std::string boolOrUnknownToString(BoolOrUnknown rep);
 BoolOrUnknown stringToBoolOrUnknown(const std::string &str);
+std::string matrixSortednessToString(MatrixSortedness s);
+MatrixSortedness stringToMatrixSortedness(const std::string &str);
 } // namespace mlir::daphne
 
 #include <ir/daphneir/DaphneInferFrameLabelsOpInterface.h>
 #include <ir/daphneir/DaphneInferMinMaxOpInterface.h>
 #include <ir/daphneir/DaphneInferShapeOpInterface.h>
+#include <ir/daphneir/DaphneInferSortednessOpInterface.h>
 #include <ir/daphneir/DaphneInferSparsityOpInterface.h>
 #include <ir/daphneir/DaphneInferSymmetricOpInterface.h>
 #include <ir/daphneir/DaphneInferTypesOpInterface.h>

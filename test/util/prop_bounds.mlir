@@ -75,8 +75,8 @@ func.func @order_bounds(%arg0: !daphne.Matrix<3x1xf64:min[-2.0]:max[4.0]>, %arg1
   return
 }
 // INFER-LABEL: func.func @order_bounds(
-// INFER: %3 = "daphne.order"(%arg0, %0, %1, %2) : (!daphne.Matrix<3x1xf64:min[-2.000000e+00]:max[4.000000e+00]>, index, i1, i1) -> !daphne.Matrix<3x1xf64:min[-2.000000e+00]:max[4.000000e+00]>
-// INFER: %4 = "daphne.order"(%arg1, %0, %1, %2) : (!daphne.Matrix<3x1xf64>, index, i1, i1) -> !daphne.Matrix<3x1xf64>
+// INFER: %3 = "daphne.order"(%arg0, %0, %1, %2) : (!daphne.Matrix<3x1xf64:min[-2.000000e+00]:max[4.000000e+00]>, index, i1, i1) -> !daphne.Matrix<3x1xf64:sortedness[sortedAsc]:min[-2.000000e+00]:max[4.000000e+00]>
+// INFER: %4 = "daphne.order"(%arg1, %0, %1, %2) : (!daphne.Matrix<3x1xf64>, index, i1, i1) -> !daphne.Matrix<3x1xf64:sortedness[sortedAsc]>
 // INFER: %5 = "daphne.order"(%arg0, %0, %1, %1) : (!daphne.Matrix<3x1xf64:min[-2.000000e+00]:max[4.000000e+00]>, index, i1, i1) -> !daphne.Matrix<3x1xindex>
 // INFER: %6 = "daphne.order"(%arg0, %0, %1, %arg2) : (!daphne.Matrix<3x1xf64:min[-2.000000e+00]:max[4.000000e+00]>, index, i1, i1) -> !daphne.Matrix<3x?xindex>
 
