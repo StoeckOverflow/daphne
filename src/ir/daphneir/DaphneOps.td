@@ -25,6 +25,7 @@ include "ir/daphneir/DaphneDistributableOpInterface.td"
 include "ir/daphneir/DaphneInferDistinctOpInterface.td"
 include "ir/daphneir/DaphneInferFrameLabelsOpInterface.td"
 include "ir/daphneir/DaphneInferBoundsOpInterface.td"
+include "ir/daphneir/DaphneInferColSortednessOpInterface.td"
 include "ir/daphneir/DaphneInferSymmetricOpInterface.td"
 include "ir/daphneir/DaphneInferShapeOpInterface.td"
 include "ir/daphneir/DaphneInferShapeTraits.td"
@@ -135,7 +136,8 @@ def Daphne_FillOp : Daphne_Op<"fill", [
     DataTypeMat, ValueTypeFromFirstArg,
     NumRowsFromIthScalar<1>, NumColsFromIthScalar<2>, CUDASupport,
     DeclareOpInterfaceMethods<InferSymmetricOpInterface>,
-    DeclareOpInterfaceMethods<InferDistinctOpInterface>, DeclareOpInterfaceMethods<InferBoundsOpInterface>
+    DeclareOpInterfaceMethods<InferDistinctOpInterface>, DeclareOpInterfaceMethods<InferBoundsOpInterface>,
+    DeclareOpInterfaceMethods<InferColSortednessOpInterface>
 ]> {
     let arguments = (ins AnyScalar:$arg, Size:$numRows, Size:$numCols);
     let results = (outs MatrixOrU:$res);
@@ -407,7 +409,7 @@ class Daphne_EwCmpOp<string name, Type inputScalarType, list<Trait> traits = []>
 
 def Daphne_EwEqOp  : Daphne_EwCmpOp<"ewEq" , AnyScalar, [Commutative]>;
 def Daphne_EwNeqOp : Daphne_EwCmpOp<"ewNeq", AnyScalar, [Commutative, CUDASupport, DeclareOpInterfaceMethods<InferBoundsOpInterface>]>;
-def Daphne_EwLtOp  : Daphne_EwCmpOp<"ewLt" , AnyScalar, [DeclareOpInterfaceMethods<InferBoundsOpInterface>]>;
+def Daphne_EwLtOp  : Daphne_EwCmpOp<"ewLt" , AnyScalar, [DeclareOpInterfaceMethods<InferBoundsOpInterface>, DeclareOpInterfaceMethods<InferColSortednessOpInterface>]>;
 def Daphne_EwLeOp  : Daphne_EwCmpOp<"ewLe" , AnyScalar>;
 def Daphne_EwGtOp  : Daphne_EwCmpOp<"ewGt" , AnyScalar>;
 def Daphne_EwGeOp  : Daphne_EwCmpOp<"ewGe" , AnyScalar>;
@@ -808,7 +810,7 @@ def Daphne_OrderOp : Daphne_Op<"order", [
     DeclareOpInterfaceMethods<InferFrameLabelsOpInterface>,
     DeclareOpInterfaceMethods<InferTypesOpInterface>, // due to possibility of returning indexes
     SameVariadicOperandSize,
-    DeclareOpInterfaceMethods<InferShapeOpInterface>, DeclareOpInterfaceMethods<InferBoundsOpInterface>]> {
+    DeclareOpInterfaceMethods<InferShapeOpInterface>, DeclareOpInterfaceMethods<InferBoundsOpInterface>, DeclareOpInterfaceMethods<InferColSortednessOpInterface>]> {
     // TODO Maybe colIdxs and ascs should be attributes.
     let arguments = (ins MatrixOrFrame:$arg, Variadic<Size>:$colIdxs, Variadic<BoolScalar>:$ascs, BoolScalar:$returnIdxs);
     let results = (outs MatrixOrFrame:$res);
@@ -1048,7 +1050,7 @@ def Daphne_CTableOp : Daphne_Op<"ctable", [
 def Daphne_SyrkOp : Daphne_Op<"syrk", [
     TypeFromFirstArg,
     DeclareOpInterfaceMethods<VectorizableOpInterface>,
-    NumRowsFromArgNumCols, NumColsFromArg, CUDASupport,FPGAOPENCLSupport, 
+    NumRowsFromArgNumCols, NumColsFromArg, CUDASupport,FPGAOPENCLSupport,
     CastFirstArgToResType
 ]> {
     let summary = [{Performs the operation `t(A) @ A` if `transLeft` is `true`; or `A @ t(A)`, otherwise.}];
@@ -2020,7 +2022,7 @@ def Daphne_LengthOp : Daphne_Op<"length", [
     DataTypeSca, ValueTypeSize
 ]> {
     let summary = "Returns the number of elements in the given list";
-    
+
     let arguments = (ins ListOrU:$arg);
     let results = (outs Size:$res);
 }
@@ -2029,7 +2031,7 @@ def Daphne_AppendOp : Daphne_Op<"append", [
     TypeFromFirstArg
 ]> {
     let summary = "Appends the given element to the end of the given list";
-    
+
     let arguments = (ins ListOrU:$argList, MatrixOrU:$elem);
     let results = (outs ListOrU:$resList);
 }
@@ -2038,7 +2040,7 @@ def Daphne_RemoveOp : Daphne_Op<"remove", [
     DeclareOpInterfaceMethods<InferTypesOpInterface>
 ]> {
     let summary = "Removes and returns the element at the specified index from the given list";
-    
+
     let arguments = (ins ListOrU:$argList, Size:$idx);
     let results = (outs ListOrU:$resList, MatrixOrU:$elem);
 }
@@ -2058,7 +2060,7 @@ def Daphne_TransferPropertiesOp : Daphne_Op<"transferProperties"> {
     let summary = "Transfers compile-time information on data properties to the runtime data objects";
 
     let arguments = (ins MatrixOrU:$arg, F64:$sparsity, SI64:$symmetric, SI64:$numDistinct,
-                         BoolScalar:$hasLowerBound, F64:$lowerBound, BoolScalar:$hasUpperBound, F64:$upperBound);
+                         BoolScalar:$hasLowerBound, F64:$lowerBound, BoolScalar:$hasUpperBound, F64:$upperBound, Variadic<SI64>:$colSortedness);
     let results = (outs);
 
     let hasCanonicalizeMethod = 1;

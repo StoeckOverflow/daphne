@@ -47,6 +47,7 @@ The fact that DAPHNE supports a certain data property does not mean that the dat
     - *symmetry:* whether the *(n x n)* matrix *X* is symmetric, i.e., for any *0 ≤ i, j ≤ n: X[i, j] = X[j, i]*
     - *numDistinct:* the number of distinct matrix values (-1 denotes unknown)
     - *value bounds:* known lower and upper bounds on matrix values, represented as optional doubles
+    - *colSortedness:* an array of `Ascending`, `Descending`, or `Unknown`, one entry per matrix column
     - *physical representation:* the way the matrix is stored in memory (e.g., dense or sparse)
 - **Frame**
     - *value types:* the array of types for each column
@@ -110,6 +111,7 @@ For each data property, there is some special value that represents *unknown*:
 - Non-negative numeric data properties (e.g., the number of rows, the number of columns, number of distinct values, sparsity, etc.): typically `-1`
 <!-- TODO maybe we will use sth like Optional<T> in the future -->
 - Value bounds: each endpoint is a `std::optional<double>`. `std::nullopt` denotes unknown
+- Column sortedness: an empty array means unknown. A nonempty array has one entry per column, with `ColSortedness::Unknown` for individual unknown directions
 - Complex object-valued data properties (e.g., the array of column labels of a frame): typically `nullptr`
 
 **The compile-time information on the data properties is also available to the runtime.**
@@ -130,6 +132,7 @@ For each data property, there is some special value that represents *unknown*:
         - sparsity
         - symmetry
         - number of distinct values (`numDistinct`)
+        - column sortedness (`colSortedness`), stored as `std::vector<ColSortedness>`
         - value bounds
 
     So far, these properties are not analyzed at run-time due to the implied extra cost.

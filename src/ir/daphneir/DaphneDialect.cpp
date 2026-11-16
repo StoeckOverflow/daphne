@@ -132,6 +132,8 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
         MatrixRepresentation representation = MatrixRepresentation::Default; // default is dense
         BoolOrUnknown symmetric = BoolOrUnknown::Unknown;
         ssize_t numDistinct = -1;
+        llvm::SmallVector<ColSortedness> colSortedness;
+        bool hasColSortedness = false;
         std::optional<double> lowerBound = std::nullopt;
         std::optional<double> upperBound = std::nullopt;
 
@@ -168,6 +170,27 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
                     return nullptr;
                 }
                 symmetric = stringToBoolOrUnknown(symmetricStr.str());
+            } else if (succeeded(parser.parseOptionalKeyword("colSortedness"))) {
+                if (hasColSortedness) {
+                    parser.emitError(parser.getCurrentLocation(), "duplicate colSortedness");
+                    return nullptr;
+                }
+                hasColSortedness = true;
+                if (parser.parseCommaSeparatedList(AsmParser::Delimiter::Square, [&]() -> ParseResult {
+                        llvm::StringRef direction;
+                        if (parser.parseKeyword(&direction))
+                            return failure();
+                        if (direction == "ascending")
+                            colSortedness.push_back(ColSortedness::Ascending);
+                        else if (direction == "descending")
+                            colSortedness.push_back(ColSortedness::Descending);
+                        else if (direction == "unknown")
+                            colSortedness.push_back(ColSortedness::Unknown);
+                        else
+                            return parser.emitError(parser.getCurrentLocation(), "invalid column sortedness");
+                        return success();
+                    }))
+                    return nullptr;
             } else if (succeeded(parser.parseOptionalKeyword("numDistinct"))) {
                 if (numDistinct != -1) {
                     parser.emitError(parser.getCurrentLocation(), "duplicate distinct count");
@@ -198,8 +221,9 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
             return nullptr;
         }
 
-        return MatrixType::get(parser.getBuilder().getContext(), elementType, numRows, numCols, sparsity,
-                               representation, symmetric, numDistinct, lowerBound, upperBound);
+        return MatrixType::getChecked([&]() { return parser.emitError(parser.getCurrentLocation()); },
+                                      parser.getBuilder().getContext(), elementType, numRows, numCols, sparsity,
+                                      representation, symmetric, numDistinct, lowerBound, upperBound, colSortedness);
     } else if (keyword == "Frame") {
         ssize_t numRows = -1;
         ssize_t numCols = -1;
@@ -283,6 +307,12 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         }
         if (numDistinct != -1) {
             os << ":numDistinct[" << numDistinct << ']';
+        }
+        if (!t.getColSortedness().empty()) {
+            os << ":colSortedness[";
+            llvm::interleaveComma(t.getColSortedness(), os,
+                                  [&](ColSortedness direction) { os << colSortednessToString(direction); });
+            os << ']';
         }
         if (lowerBound)
             os << ":lowerBound[" << llvm::APFloat(*t.getLowerBound()) << ']';
@@ -382,15 +412,29 @@ BoolOrUnknown mlir::daphne::stringToBoolOrUnknown(const std::string &str) {
         throw std::runtime_error("no BoolOrUnknown equals the string `" + str + "`");
 }
 
+std::string mlir::daphne::colSortednessToString(ColSortedness direction) {
+    switch (direction) {
+    case ColSortedness::Unknown:
+        return "unknown";
+    case ColSortedness::Ascending:
+        return "ascending";
+    case ColSortedness::Descending:
+        return "descending";
+    }
+    llvm_unreachable("invalid column sortedness");
+}
+
 namespace mlir::daphne {
 namespace detail {
 
 // Constructor implementation
 MatrixTypeStorage::MatrixTypeStorage(::mlir::Type elementType, ssize_t numRows, ssize_t numCols, double sparsity,
                                      MatrixRepresentation representation, BoolOrUnknown symmetric, ssize_t numDistinct,
-                                     std::optional<double> lowerBound, std::optional<double> upperBound)
+                                     std::optional<double> lowerBound, std::optional<double> upperBound,
+                                     llvm::ArrayRef<ColSortedness> colSortedness)
     : elementType(elementType), numRows(numRows), numCols(numCols), sparsity(sparsity), representation(representation),
-      symmetric(symmetric), numDistinct(numDistinct), lowerBound(lowerBound), upperBound(upperBound) {}
+      symmetric(symmetric), numDistinct(numDistinct), lowerBound(lowerBound), upperBound(upperBound),
+      colSortedness(colSortedness) {}
 
 // Equality operator implementation
 bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
@@ -410,6 +454,8 @@ bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
         return false;
     if (lowerBound != std::get<7>(tblgenKey))
         return false;
+    if (colSortedness != std::get<9>(tblgenKey))
+        return false;
     if (upperBound != std::get<8>(tblgenKey))
         return false;
     return true;
@@ -421,7 +467,8 @@ bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
     return ::llvm::hash_combine(std::get<0>(tblgenKey), std::get<1>(tblgenKey), std::get<2>(tblgenKey), float_hashable,
                                 std::get<4>(tblgenKey), std::get<5>(tblgenKey), std::get<6>(tblgenKey),
                                 std::hash<std::optional<double>>()(std::get<7>(tblgenKey)),
-                                std::hash<std::optional<double>>()(std::get<8>(tblgenKey)));
+                                std::hash<std::optional<double>>()(std::get<8>(tblgenKey)),
+                                llvm::hash_combine_range(std::get<9>(tblgenKey).begin(), std::get<9>(tblgenKey).end()));
 }
 
 // Construct implementation
@@ -435,9 +482,11 @@ MatrixTypeStorage *MatrixTypeStorage::construct(::mlir::TypeStorageAllocator &al
     auto numDistinct = std::get<6>(tblgenKey);
     auto lowerBound = std::get<7>(tblgenKey);
     auto upperBound = std::get<8>(tblgenKey);
+    auto colSortedness = allocator.copyInto(std::get<9>(tblgenKey));
 
-    return new (allocator.allocate<MatrixTypeStorage>()) MatrixTypeStorage(
-        elementType, numRows, numCols, sparsity, representation, symmetric, numDistinct, lowerBound, upperBound);
+    return new (allocator.allocate<MatrixTypeStorage>())
+        MatrixTypeStorage(elementType, numRows, numCols, sparsity, representation, symmetric, numDistinct, lowerBound,
+                          upperBound, colSortedness);
 }
 
 } // namespace detail
@@ -447,18 +496,24 @@ ssize_t MatrixType::getNumCols() const { return getImpl()->numCols; }
 double MatrixType::getSparsity() const { return getImpl()->sparsity; }
 MatrixRepresentation MatrixType::getRepresentation() const { return getImpl()->representation; }
 BoolOrUnknown MatrixType::getSymmetric() const { return getImpl()->symmetric; }
+llvm::ArrayRef<ColSortedness> MatrixType::getColSortedness() const { return getImpl()->colSortedness; }
 ssize_t MatrixType::getNumDistinct() const { return getImpl()->numDistinct; }
 std::optional<double> MatrixType::getLowerBound() const { return getImpl()->lowerBound; }
 std::optional<double> MatrixType::getUpperBound() const { return getImpl()->upperBound; }
 
 } // namespace mlir::daphne
 
-::mlir::LogicalResult mlir::daphne::MatrixType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
-                                                       Type elementType, ssize_t numRows, ssize_t numCols,
-                                                       double sparsity, MatrixRepresentation rep,
-                                                       BoolOrUnknown symmetric, ssize_t numDistinct,
-                                                       std::optional<double> lowerBound,
-                                                       std::optional<double> upperBound) {
+::mlir::LogicalResult
+mlir::daphne::MatrixType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError, Type elementType,
+                                 ssize_t numRows, ssize_t numCols, double sparsity, MatrixRepresentation rep,
+                                 BoolOrUnknown symmetric, ssize_t numDistinct, std::optional<double> lowerBound,
+                                 std::optional<double> upperBound, llvm::ArrayRef<ColSortedness> colSortedness) {
+    if (!colSortedness.empty() && numCols >= 0 && colSortedness.size() != static_cast<size_t>(numCols))
+        return emitError() << "colSortedness must have one entry per column";
+    for (auto direction : colSortedness)
+        if (direction != ColSortedness::Unknown && direction != ColSortedness::Ascending &&
+            direction != ColSortedness::Descending)
+            return emitError() << "invalid column sortedness";
     if ((numRows == 0 || numCols == 0) && numDistinct > 0)
         return emitError() << "empty matrices cannot have positive distinct counts";
     if (numRows > 0 && numCols > 0 && numDistinct == 0)

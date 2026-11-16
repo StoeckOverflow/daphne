@@ -59,7 +59,7 @@ def Matrix : Daphne_Type<"Matrix"> {
     // TODO Maybe we should rename "element type" to "value type" everywhere.
     let parameters = (ins
         "::mlir::Type":$elementType,
-        "ssize_t":$numRows, "ssize_t":$numCols, "double":$sparsity, "MatrixRepresentation":$representation, "BoolOrUnknown":$symmetric, "ssize_t":$numDistinct, "std::optional<double>":$lowerBound, "std::optional<double>":$upperBound
+        "ssize_t":$numRows, "ssize_t":$numCols, "double":$sparsity, "MatrixRepresentation":$representation, "BoolOrUnknown":$symmetric, "ssize_t":$numDistinct, "std::optional<double>":$lowerBound, "std::optional<double>":$upperBound, "llvm::ArrayRef<ColSortedness>":$colSortedness
     );
     let genVerifyDecl = 1;
     // NOTE: float needs special treatment for equality check and hashing (epsilon)
@@ -69,7 +69,7 @@ def Matrix : Daphne_Type<"Matrix"> {
         // Creates a MatrixType from mere element type information, with all
         // other parameters reset.
         TypeBuilder<(ins "::mlir::Type":$elementType), [{
-            return Base::get($_ctxt, elementType, -1, -1, -1.0, ::mlir::daphne::MatrixRepresentation::Default, ::mlir::daphne::BoolOrUnknown::Unknown, -1, std::nullopt, std::nullopt);
+            return Base::get($_ctxt, elementType, -1, -1, -1.0, ::mlir::daphne::MatrixRepresentation::Default, ::mlir::daphne::BoolOrUnknown::Unknown, -1, std::nullopt, std::nullopt, llvm::ArrayRef<ColSortedness>{});
         }]>,
     ];
 
@@ -79,31 +79,35 @@ def Matrix : Daphne_Type<"Matrix"> {
         // new value.
 
         ::mlir::daphne::MatrixType withElementType(::mlir::Type elementType) {
-            return get(getContext(), elementType, getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound());
+            return get(getContext(), elementType, getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound(), getColSortedness());
         }
 
         ::mlir::daphne::MatrixType withShape(ssize_t numRows, ssize_t numCols) {
-            return get(getContext(), getElementType(), numRows, numCols, getSparsity(), getRepresentation(), getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound());
+            return get(getContext(), getElementType(), numRows, numCols, getSparsity(), getRepresentation(), getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound(), getColSortedness());
         }
 
         ::mlir::daphne::MatrixType withSparsity(double sparsity) {
-            return get(getContext(), getElementType(), getNumRows(), getNumCols(), sparsity, getRepresentation(), getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound());
+            return get(getContext(), getElementType(), getNumRows(), getNumCols(), sparsity, getRepresentation(), getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound(), getColSortedness());
         }
 
         ::mlir::daphne::MatrixType withRepresentation(::mlir::daphne::MatrixRepresentation rep) {
-            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), rep, getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound());
+            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), rep, getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound(), getColSortedness());
         }
 
         ::mlir::daphne::MatrixType withSymmetric(BoolOrUnknown symmetric) {
-            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), getRepresentation(), symmetric, getNumDistinct(), getLowerBound(), getUpperBound());
+            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), getRepresentation(), symmetric, getNumDistinct(), getLowerBound(), getUpperBound(), getColSortedness());
         }
 
         ::mlir::daphne::MatrixType withNumDistinct(ssize_t numDistinct) {
-            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), numDistinct, getLowerBound(), getUpperBound());
+            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), numDistinct, getLowerBound(), getUpperBound(), getColSortedness());
         }
 
         ::mlir::daphne::MatrixType withBounds(std::optional<double> lowerBound, std::optional<double> upperBound) {
-            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), getNumDistinct(), lowerBound, upperBound);
+            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), getNumDistinct(), lowerBound, upperBound, getColSortedness());
+        }
+
+        ::mlir::daphne::MatrixType withColSortedness(llvm::ArrayRef<ColSortedness> colSortedness) {
+            return get(getContext(), getElementType(), getNumRows(), getNumCols(), getSparsity(), getRepresentation(), getSymmetric(), getNumDistinct(), getLowerBound(), getUpperBound(), colSortedness);
         }
 
         // The following methods return a MatrixType preserving the specified
@@ -114,7 +118,7 @@ def Matrix : Daphne_Type<"Matrix"> {
         }
 
         ::mlir::daphne::MatrixType withSameElementTypeAndRepr() {
-            return get(getContext(), getElementType(), -1, -1, -1.0, getRepresentation(), ::mlir::daphne::BoolOrUnknown::Unknown, -1, std::nullopt, std::nullopt);
+            return get(getContext(), getElementType(), -1, -1, -1.0, getRepresentation(), ::mlir::daphne::BoolOrUnknown::Unknown, -1, std::nullopt, std::nullopt, llvm::ArrayRef<ColSortedness>{});
         }
 
         /**
@@ -142,6 +146,11 @@ def Matrix : Daphne_Type<"Matrix"> {
             if (other.getSymmetric() != ::mlir::daphne::BoolOrUnknown::Unknown
                 && getSymmetric() != other.getSymmetric())
                 return false;
+
+            for (size_t i = 0; i < other.getColSortedness().size(); ++i)
+                if (other.getColSortedness()[i] != ColSortedness::Unknown &&
+                    (i >= getColSortedness().size() || getColSortedness()[i] != other.getColSortedness()[i]))
+                    return false;
 
             if (other.getNumDistinct() != -1 && getNumDistinct() != other.getNumDistinct())
                 return false;

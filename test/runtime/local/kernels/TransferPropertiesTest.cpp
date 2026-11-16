@@ -27,10 +27,12 @@ TEMPLATE_PRODUCT_TEST_CASE("Matrix.numDistinct transfer", TAG_KERNELS, (DenseMat
     using DT = TestType;
     auto matrix = genGivenVals<DT>(2, {0, 1, 1, 2});
     CHECK(matrix->numDistinct == -1);
-    transferProperties(matrix, 0.75, static_cast<int64_t>(BoolOrUnknown::Unknown), 3, false, 0.0, false, 0.0, nullptr);
+    transferProperties(matrix, 0.75, static_cast<int64_t>(BoolOrUnknown::Unknown), 3, false, 0.0, false, 0.0, nullptr,
+                       0, nullptr);
     CHECK(matrix->numDistinct == 3);
     CHECK(matrix->sparsity == 0.75);
-    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, false, 0.0, false, 0.0, nullptr);
+    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, false, 0.0, false, 0.0, nullptr, 0,
+                       nullptr);
     CHECK(matrix->numDistinct == -1);
     DataObjectFactory::destroy(matrix);
 }
@@ -40,17 +42,37 @@ TEMPLATE_PRODUCT_TEST_CASE("Matrix.bounds transfer", TAG_KERNELS, (DenseMatrix, 
     auto matrix = genGivenVals<DT>(2, {0, 1, 1, 2});
     CHECK_FALSE(matrix->lowerBound.has_value());
     CHECK_FALSE(matrix->upperBound.has_value());
-    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, true, 0.0, true, 2.0, nullptr);
+    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, true, 0.0, true, 2.0, nullptr, 0,
+                       nullptr);
     CHECK(matrix->lowerBound == 0.0);
     CHECK(matrix->upperBound == 2.0);
-    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, true, -2.0, false, 8.0, nullptr);
+    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, true, -2.0, false, 8.0, nullptr, 0,
+                       nullptr);
     CHECK(matrix->lowerBound == -2.0);
     CHECK_FALSE(matrix->upperBound.has_value());
-    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, false, 7.0, true, 4.0, nullptr);
+    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, false, 7.0, true, 4.0, nullptr, 0,
+                       nullptr);
     CHECK_FALSE(matrix->lowerBound.has_value());
     CHECK(matrix->upperBound == 4.0);
-    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, false, 7.0, false, 8.0, nullptr);
+    transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, false, 7.0, false, 8.0, nullptr, 0,
+                       nullptr);
     CHECK_FALSE(matrix->lowerBound.has_value());
     CHECK_FALSE(matrix->upperBound.has_value());
+    DataObjectFactory::destroy(matrix);
+}
+
+TEMPLATE_PRODUCT_TEST_CASE("Matrix.colSortedness transfer", TAG_KERNELS, (DenseMatrix, CSRMatrix), (double, int64_t)) {
+    using DT = TestType;
+    auto matrix = genGivenVals<DT>(2, {0, 3, 2, 1});
+    CHECK(matrix->colSortedness.empty());
+    int64_t directions[] = {1, 2};
+    transferProperties(matrix, -1, -1, -1, false, 0, false, 0, directions, 2, nullptr);
+    CHECK(matrix->colSortedness == std::vector<ColSortedness>{ColSortedness::Ascending, ColSortedness::Descending});
+    directions[0] = -1;
+    CHECK(matrix->colSortedness[0] == ColSortedness::Ascending);
+    transferProperties(matrix, -1, -1, -1, false, 0, false, 0, directions, 2, nullptr);
+    CHECK(matrix->colSortedness[0] == ColSortedness::Unknown);
+    transferProperties(matrix, -1, -1, -1, false, 0, false, 0, nullptr, 0, nullptr);
+    CHECK(matrix->colSortedness.empty());
     DataObjectFactory::destroy(matrix);
 }

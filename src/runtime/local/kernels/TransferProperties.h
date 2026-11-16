@@ -27,7 +27,8 @@
 
 template <class DT> struct TransferProperties {
     static void apply(const DT *arg, double sparsity, int64_t symmetric, int64_t numDistinct, bool hasLowerBound,
-                      double lowerBound, bool hasUpperBound, double upperBound, DCTX(ctx)) = delete;
+                      double lowerBound, bool hasUpperBound, double upperBound, const int64_t *colSortedness,
+                      size_t numColSortedness, DCTX(ctx)) = delete;
 };
 
 // ****************************************************************************
@@ -36,9 +37,10 @@ template <class DT> struct TransferProperties {
 
 template <class DT>
 void transferProperties(const DT *arg, double sparsity, int64_t symmetric, int64_t numDistinct, bool hasLowerBound,
-                        double lowerBound, bool hasUpperBound, double upperBound, DCTX(ctx)) {
+                        double lowerBound, bool hasUpperBound, double upperBound, const int64_t *colSortedness,
+                        size_t numColSortedness, DCTX(ctx)) {
     TransferProperties<DT>::apply(arg, sparsity, symmetric, numDistinct, hasLowerBound, lowerBound, hasUpperBound,
-                                  upperBound, ctx);
+                                  upperBound, colSortedness, numColSortedness, ctx);
 }
 
 // ****************************************************************************
@@ -51,14 +53,17 @@ void transferProperties(const DT *arg, double sparsity, int64_t symmetric, int64
 
 template <typename VT> struct TransferProperties<DenseMatrix<VT>> {
     static void apply(const DenseMatrix<VT> *arg, double sparsity, int64_t symmetric, int64_t numDistinct,
-                      bool hasLowerBound, double lowerBound, bool hasUpperBound, double upperBound, DCTX(ctx)) {
-        const_cast<DenseMatrix<VT> *>(arg)->sparsity = sparsity;
-        const_cast<DenseMatrix<VT> *>(arg)->symmetric = static_cast<BoolOrUnknown>(symmetric);
-        const_cast<DenseMatrix<VT> *>(arg)->numDistinct = numDistinct;
-        const_cast<DenseMatrix<VT> *>(arg)->lowerBound =
-            hasLowerBound ? std::optional<double>(lowerBound) : std::nullopt;
-        const_cast<DenseMatrix<VT> *>(arg)->upperBound =
-            hasUpperBound ? std::optional<double>(upperBound) : std::nullopt;
+                      bool hasLowerBound, double lowerBound, bool hasUpperBound, double upperBound,
+                      const int64_t *colSortedness, size_t numColSortedness, DCTX(ctx)) {
+        auto *matrix = const_cast<DenseMatrix<VT> *>(arg);
+        matrix->colSortedness.resize(numColSortedness);
+        for (size_t c = 0; c < numColSortedness; ++c)
+            matrix->colSortedness[c] = static_cast<ColSortedness>(colSortedness[c]);
+        matrix->sparsity = sparsity;
+        matrix->symmetric = static_cast<BoolOrUnknown>(symmetric);
+        matrix->numDistinct = numDistinct;
+        matrix->lowerBound = hasLowerBound ? std::optional<double>(lowerBound) : std::nullopt;
+        matrix->upperBound = hasUpperBound ? std::optional<double>(upperBound) : std::nullopt;
     }
 };
 
@@ -68,11 +73,16 @@ template <typename VT> struct TransferProperties<DenseMatrix<VT>> {
 
 template <typename VT> struct TransferProperties<CSRMatrix<VT>> {
     static void apply(const CSRMatrix<VT> *arg, double sparsity, int64_t symmetric, int64_t numDistinct,
-                      bool hasLowerBound, double lowerBound, bool hasUpperBound, double upperBound, DCTX(ctx)) {
-        const_cast<CSRMatrix<VT> *>(arg)->sparsity = sparsity;
-        const_cast<CSRMatrix<VT> *>(arg)->symmetric = static_cast<BoolOrUnknown>(symmetric);
-        const_cast<CSRMatrix<VT> *>(arg)->numDistinct = numDistinct;
-        const_cast<CSRMatrix<VT> *>(arg)->lowerBound = hasLowerBound ? std::optional<double>(lowerBound) : std::nullopt;
-        const_cast<CSRMatrix<VT> *>(arg)->upperBound = hasUpperBound ? std::optional<double>(upperBound) : std::nullopt;
+                      bool hasLowerBound, double lowerBound, bool hasUpperBound, double upperBound,
+                      const int64_t *colSortedness, size_t numColSortedness, DCTX(ctx)) {
+        auto *matrix = const_cast<CSRMatrix<VT> *>(arg);
+        matrix->colSortedness.resize(numColSortedness);
+        for (size_t c = 0; c < numColSortedness; ++c)
+            matrix->colSortedness[c] = static_cast<ColSortedness>(colSortedness[c]);
+        matrix->sparsity = sparsity;
+        matrix->symmetric = static_cast<BoolOrUnknown>(symmetric);
+        matrix->numDistinct = numDistinct;
+        matrix->lowerBound = hasLowerBound ? std::optional<double>(lowerBound) : std::nullopt;
+        matrix->upperBound = hasUpperBound ? std::optional<double>(upperBound) : std::nullopt;
     }
 };

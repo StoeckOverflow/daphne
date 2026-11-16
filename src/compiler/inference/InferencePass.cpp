@@ -32,10 +32,11 @@ using namespace mlir;
 
 daphne::InferenceConfig::InferenceConfig(bool partialInferenceAllowed, bool typeInference, bool shapeInference,
                                          bool frameLabelInference, bool sparsityInference, bool symmetricInference,
-                                         bool distinctInference, bool boundsInference)
+                                         bool distinctInference, bool boundsInference, bool colSortednessInference)
     : partialInferenceAllowed(partialInferenceAllowed), typeInference(typeInference), shapeInference(shapeInference),
       frameLabelInference(frameLabelInference), sparsityInference(sparsityInference),
-      symmetricInference(symmetricInference), distinctInference(distinctInference), boundsInference(boundsInference) {}
+      symmetricInference(symmetricInference), distinctInference(distinctInference), boundsInference(boundsInference),
+      colSortednessInference(colSortednessInference) {}
 
 namespace {
 void castOperandIf(OpBuilder &builder, Operation *op, size_t operandIdx, Type type) {
@@ -82,13 +83,21 @@ Type getTypeWithCommonInfo(Type t1, Type t2) {
         const std::optional<double> lowerBound2 = mat2.getLowerBound();
         const std::optional<double> upperBound1 = mat1.getUpperBound();
         const std::optional<double> upperBound2 = mat2.getUpperBound();
+        std::vector<ColSortedness> colSortedness;
+        auto colSortedness1 = mat1.getColSortedness();
+        auto colSortedness2 = mat2.getColSortedness();
+        if (vt1 == vt2 && nc1 == nc2 && colSortedness1.size() == colSortedness2.size()) {
+            for (size_t i = 0; i < colSortedness1.size(); ++i)
+                colSortedness.push_back(colSortedness1[i] == colSortedness2[i] ? colSortedness1[i]
+                                                                               : ColSortedness::Unknown);
+        }
         return daphne::MatrixType::get(ctx, (vt1 == vt2) ? vt1 : u, (nr1 == nr2) ? nr1 : -1, (nc1 == nc2) ? nc1 : -1,
                                        // TODO Maybe do approximate comparison of floating-point values.
                                        (sp1 == sp2) ? sp1 : -1,
                                        (repr1 == repr2) ? repr1 : daphne::MatrixRepresentation::Default,
                                        (sym1 == sym2) ? sym1 : BoolOrUnknown::Unknown, (dist1 == dist2) ? dist1 : -1,
                                        (lowerBound1 == lowerBound2) ? lowerBound1 : std::nullopt,
-                                       (upperBound1 == upperBound2) ? upperBound1 : std::nullopt);
+                                       (upperBound1 == upperBound2) ? upperBound1 : std::nullopt, colSortedness);
     } else if (frm1 && frm2) { // both types are frames
         const std::vector<Type> cts1 = frm1.getColumnTypes();
         const std::vector<Type> cts2 = frm2.getColumnTypes();
@@ -203,9 +212,13 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
                         const ssize_t numCols = shapes[i].second;
                         Value rv = op->getResult(i);
                         const Type rt = rv.getType();
-                        if (auto mt = mlir::dyn_cast<daphne::MatrixType>(rt))
+                        if (auto mt = mlir::dyn_cast<daphne::MatrixType>(rt)) {
+                            if (!mt.getColSortedness().empty() && numCols >= 0 &&
+                                mt.getColSortedness().size() != static_cast<size_t>(numCols))
+                                throw ErrorHandler::compilerError(op, "InferencePass",
+                                                                  "colSortedness does not match inferred column count");
                             rv.setType(mt.withShape(numRows, numCols));
-                        else if (auto ft = mlir::dyn_cast<daphne::FrameType>(rt))
+                        } else if (auto ft = mlir::dyn_cast<daphne::FrameType>(rt))
                             rv.setType(ft.withShape(numRows, numCols));
                         else
                             throw ErrorHandler::compilerError(op, "InferencePass.cpp:" + std::to_string(__LINE__),
@@ -298,6 +311,27 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
                         if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
                             rv.setType(mt.withBounds(lowerBound, upperBound));
                     }
+                }
+            }
+            if (cfg.colSortednessInference && returnsUnknownColSortedness(op)) {
+                auto inferred = daphne::tryInferColSortedness(op);
+                if (inferred.size() != op->getNumResults())
+                    throw ErrorHandler::compilerError(op, "InferencePass",
+                                                      "column sortedness inference returned an invalid result count");
+                for (size_t i = 0; i < inferred.size(); ++i) {
+                    auto rv = op->getResult(i);
+                    auto mt = dyn_cast<daphne::MatrixType>(rv.getType());
+                    if (!mt || inferred[i].empty())
+                        continue;
+                    auto known = mt.getColSortedness();
+                    if ((mt.getNumCols() >= 0 && inferred[i].size() != static_cast<size_t>(mt.getNumCols())) ||
+                        (!known.empty() && known.size() != inferred[i].size()))
+                        throw ErrorHandler::compilerError(
+                            op, "InferencePass", "column sortedness inference returned an invalid column count");
+                    for (size_t c = 0; c < known.size(); ++c)
+                        if (known[c] != ColSortedness::Unknown)
+                            inferred[i][c] = known[c];
+                    rv.setType(mt.withColSortedness(inferred[i]));
                 }
             }
             if (cfg.frameLabelInference && returnsFrameWithUnknownLabels(op)) {
@@ -555,6 +589,15 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
         return llvm::any_of(op->getResultTypes(), [](Type rt) {
             if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
                 return !mt.getLowerBound().has_value() || !mt.getUpperBound().has_value();
+            return false;
+        });
+    }
+
+    static bool returnsUnknownColSortedness(Operation *op) {
+        return llvm::any_of(op->getResultTypes(), [](Type rt) {
+            if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                return mt.getColSortedness().empty() ||
+                       llvm::is_contained(mt.getColSortedness(), ColSortedness::Unknown);
             return false;
         });
     }

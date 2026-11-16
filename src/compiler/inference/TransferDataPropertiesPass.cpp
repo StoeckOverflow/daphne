@@ -54,9 +54,13 @@ struct TransferDataPropertiesPass : public PassWrapper<TransferDataPropertiesPas
                     auto coLowerBound = builder.create<daphne::ConstantOp>(loc, mt.getLowerBound().value_or(0.0));
                     auto coHasUpperBound = builder.create<daphne::ConstantOp>(loc, mt.getUpperBound().has_value());
                     auto coUpperBound = builder.create<daphne::ConstantOp>(loc, mt.getUpperBound().value_or(0.0));
+                    SmallVector<Value> coColSortedness;
+                    for (auto direction : mt.getColSortedness())
+                        coColSortedness.push_back(
+                            builder.create<daphne::ConstantOp>(loc, static_cast<int64_t>(direction)));
                     builder.create<daphne::TransferPropertiesOp>(loc, v, coSparsity, coSymmetric, coNumDistinct,
                                                                  coHasLowerBound, coLowerBound, coHasUpperBound,
-                                                                 coUpperBound);
+                                                                 coUpperBound, coColSortedness);
                 }
             }
 

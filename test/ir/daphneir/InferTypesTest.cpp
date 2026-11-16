@@ -161,6 +161,21 @@ TEST_CASE("TypeInferenceTraits", TAG_INFERENCE) {
     [[maybe_unused]] daphne::MatrixType matsi8 = daphne::MatrixType::get(&ctx, si8);
     [[maybe_unused]] daphne::MatrixType matbl = daphne::MatrixType::get(&ctx, bl);
 
+    SECTION("column sortedness storage and helpers") {
+        std::vector<ColSortedness> directions{ColSortedness::Ascending, ColSortedness::Descending};
+        auto matrix = matf64.withShape(3, 2).withColSortedness(directions);
+        directions[0] = ColSortedness::Unknown;
+        CHECK(matrix.getColSortedness()[0] == ColSortedness::Ascending);
+        CHECK(matrix ==
+              matf64.withShape(3, 2).withColSortedness({ColSortedness::Ascending, ColSortedness::Descending}));
+        CHECK(matrix != matf64.withShape(3, 2).withColSortedness(directions));
+        CHECK(matrix.withElementType(f32).getColSortedness() == matrix.getColSortedness());
+        CHECK(matrix.withShape(4, 2).getColSortedness() == matrix.getColSortedness());
+        CHECK(matrix.withSameElementType().getColSortedness().empty());
+        CHECK(matrix.isSpecializationOf(
+            matf64.withShape(3, 2).withColSortedness({ColSortedness::Ascending, ColSortedness::Unknown})));
+    }
+
     // A few frame types for convenient use below.
     [[maybe_unused]] Type frmf64 = frm({f64});
 

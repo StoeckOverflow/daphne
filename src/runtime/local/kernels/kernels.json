@@ -7833,6 +7833,15 @@
                 {
                     "type": "double",
                     "name": "upperBound"
+                },
+                {
+                    "type": "int64_t *",
+                    "name": "colSortedness",
+                    "isVariadic": true
+                },
+                {
+                    "type": "size_t",
+                    "name": "numColSortedness"
                 }
             ]
         },

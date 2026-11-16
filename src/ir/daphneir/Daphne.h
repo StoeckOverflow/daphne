@@ -76,9 +76,11 @@
 namespace mlir::daphne {
 std::string boolOrUnknownToString(BoolOrUnknown rep);
 BoolOrUnknown stringToBoolOrUnknown(const std::string &str);
+std::string colSortednessToString(ColSortedness s);
 } // namespace mlir::daphne
 
 #include <ir/daphneir/DaphneInferBoundsOpInterface.h>
+#include <ir/daphneir/DaphneInferColSortednessOpInterface.h>
 #include <ir/daphneir/DaphneInferDistinctOpInterface.h>
 #include <ir/daphneir/DaphneInferFrameLabelsOpInterface.h>
 #include <ir/daphneir/DaphneInferShapeOpInterface.h>

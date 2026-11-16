@@ -128,8 +128,10 @@ void AdaptTypesToKernelsPass::runOnOperation() {
                 Value argVal = op->getOperand(i);
                 Type argTy = argVal.getType();
                 if (CompilerUtils::getValueType(argTy) != targetVTy) {
-                    op->setOperand(i, builder.create<daphne::CastOp>(
-                                          argVal.getLoc(), CompilerUtils::setValueType(argTy, targetVTy), argVal));
+                    Type castTy = CompilerUtils::setValueType(argTy, targetVTy);
+                    if (auto mt = dyn_cast<daphne::MatrixType>(castTy))
+                        castTy = mt.withColSortedness({});
+                    op->setOperand(i, builder.create<daphne::CastOp>(argVal.getLoc(), castTy, argVal));
                 }
             }
         }

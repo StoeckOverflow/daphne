@@ -23,7 +23,10 @@
 
 namespace mlir::daphne {
 enum class BoolOrUnknown { Unknown = -1, False = 0, True = 1 };
+// Order down an individual matrix column. Equal adjacent values are allowed.
+enum class ColSortedness { Unknown = -1, Ascending = 1, Descending = 2 };
 } // namespace mlir::daphne
 
 // Make it available in the global namespace for backward compatibility if needed
 using mlir::daphne::BoolOrUnknown;
+using mlir::daphne::ColSortedness;

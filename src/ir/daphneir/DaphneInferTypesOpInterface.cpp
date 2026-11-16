@@ -291,7 +291,7 @@ std::vector<Type> daphne::RandMatrixOp::inferTypes() {
 
 std::vector<Type> daphne::EigenOp::inferTypes() {
     auto evMatType = llvm::dyn_cast<daphne::MatrixType>(getArg().getType());
-    return {evMatType.withSameElementType(), evMatType};
+    return {evMatType.withSameElementType(), evMatType.withColSortedness({})};
 }
 
 std::vector<Type> daphne::GroupJoinOp::inferTypes() {
@@ -401,7 +401,9 @@ std::vector<Type> daphne::OneHotOp::inferTypes() {
     Type srcType = getArg().getType();
     Builder builder(getContext());
     if (llvm::isa<mlir::daphne::StringType>(llvm::dyn_cast<daphne::MatrixType>(srcType).getElementType()))
-        return {llvm::dyn_cast<daphne::MatrixType>(srcType).withElementType(builder.getIntegerType(64, true))};
+        return {llvm::dyn_cast<daphne::MatrixType>(srcType)
+                    .withElementType(builder.getIntegerType(64, true))
+                    .withColSortedness({})};
     else
         return {llvm::dyn_cast<daphne::MatrixType>(srcType).withSameElementType()};
 }
@@ -582,7 +584,7 @@ std::vector<Type> daphne::CondOp::inferTypes() {
             throw ErrorHandler::compilerError(getLoc(), "InferTypesOpInterface",
                                               "the then/else-values of CondOp must have the same value type");
 
-        return {condMatTy.withElementType(thenValTy)};
+        return {condMatTy.withElementType(thenValTy).withColSortedness({})};
     } else if (auto condFrmTy = llvm::dyn_cast<daphne::FrameType>(condTy))
         throw ErrorHandler::compilerError(getLoc(), "InferTypesOpInterface",
                                           "CondOp does not support frames for the condition yet");

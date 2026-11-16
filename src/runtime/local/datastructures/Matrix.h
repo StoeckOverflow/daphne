@@ -22,6 +22,7 @@
 
 #include <cstddef>
 #include <optional>
+#include <vector>
 
 /**
  * @brief The base class of all matrix implementations.
@@ -70,6 +71,13 @@ template <typename ValueType> class Matrix : public Structure {
      */
     std::optional<double> lowerBound;
     std::optional<double> upperBound;
+
+    /**
+     * @brief Per-column nondecreasing/nonincreasing order. Empty means unknown.
+     *
+     * Compile-time information is not automatically invalidated by mutations or aliases.
+     */
+    std::vector<ColSortedness> colSortedness;
 
     virtual ~Matrix(){
         // nothing to do
