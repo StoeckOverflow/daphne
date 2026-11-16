@@ -38,11 +38,11 @@ struct MatrixTypeStorage : public ::mlir::TypeStorage {
 
     MatrixTypeStorage(::mlir::Type elementType, ssize_t numRows, ssize_t numCols, double sparsity,
                       MatrixRepresentation representation, BoolOrUnknown symmetric, ssize_t numDistinct,
-                      std::optional<double> lowerBound, std::optional<double> upperBound);
+                      std::optional<double> lowerBound, std::optional<double> upperBound, ssize_t sparsityPatternID);
 
     /// The hash key is a tuple of the parameter types.
     using KeyTy = std::tuple<::mlir::Type, ssize_t, ssize_t, double, MatrixRepresentation, BoolOrUnknown, ssize_t,
-                             std::optional<double>, std::optional<double>>;
+                             std::optional<double>, std::optional<double>, ssize_t>;
     bool operator==(const KeyTy &tblgenKey) const;
     static ::llvm::hash_code hashKey(const KeyTy &tblgenKey);
 
@@ -60,6 +60,7 @@ struct MatrixTypeStorage : public ::mlir::TypeStorage {
     ssize_t numDistinct;
     std::optional<double> lowerBound;
     std::optional<double> upperBound;
+    ssize_t sparsityPatternID;
 };
 
 } // namespace detail

@@ -83,6 +83,7 @@ BoolOrUnknown stringToBoolOrUnknown(const std::string &str);
 #include <ir/daphneir/DaphneInferFrameLabelsOpInterface.h>
 #include <ir/daphneir/DaphneInferShapeOpInterface.h>
 #include <ir/daphneir/DaphneInferSparsityOpInterface.h>
+#include <ir/daphneir/DaphneInferSparsityPatternOpInterface.h>
 #include <ir/daphneir/DaphneInferSymmetricOpInterface.h>
 #include <ir/daphneir/DaphneInferTypesOpInterface.h>
 

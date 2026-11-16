@@ -25,6 +25,7 @@ include "ir/daphneir/DaphneDistributableOpInterface.td"
 include "ir/daphneir/DaphneInferDistinctOpInterface.td"
 include "ir/daphneir/DaphneInferFrameLabelsOpInterface.td"
 include "ir/daphneir/DaphneInferBoundsOpInterface.td"
+include "ir/daphneir/DaphneInferSparsityPatternOpInterface.td"
 include "ir/daphneir/DaphneInferSymmetricOpInterface.td"
 include "ir/daphneir/DaphneInferShapeOpInterface.td"
 include "ir/daphneir/DaphneInferShapeTraits.td"
@@ -164,8 +165,7 @@ def Daphne_CreateFrameOp : Daphne_Op<"createFrame", [
 def Daphne_DiagMatrixOp : Daphne_Op<"diagMatrix", [
     TypeFromFirstArg,
     NumRowsFromArg, NumColsFromArgNumRows,
-    DeclareOpInterfaceMethods<InferSparsityOpInterface>
-]> {
+    DeclareOpInterfaceMethods<InferSparsityOpInterface>, DeclareOpInterfaceMethods<InferSparsityPatternOpInterface>]> {
     let arguments = (ins MatrixOrU:$arg);
     let results = (outs MatrixOrU:$res);
 }
@@ -275,11 +275,11 @@ def Daphne_EwMinusOp : Daphne_EwUnaryOp<"ewMinus", NumScalar, [ValueTypeFromFirs
    let hasFolder = 1;
    let hasCanonicalizeMethod = 1;
 }
-def Daphne_EwAbsOp : Daphne_EwUnaryOp<"ewAbs", NumScalar, [ValueTypeFromFirstArg]>;
+def Daphne_EwAbsOp : Daphne_EwUnaryOp<"ewAbs", NumScalar, [ValueTypeFromFirstArg, DeclareOpInterfaceMethods<InferSparsityPatternOpInterface>]>;
 def Daphne_EwSignOp : Daphne_EwUnaryOp<"ewSign", NumScalar, [ValueTypeFromFirstArg]>;
 def Daphne_EwExpOp : Daphne_EwUnaryOp<"ewExp", NumScalar, [ValueTypeFromArgsFP]>;
-def Daphne_EwLnOp : Daphne_EwUnaryOp<"ewLn", NumScalar, [ValueTypeFromArgsFP]>;
-def Daphne_EwSqrtOp : Daphne_EwUnaryOp<"ewSqrt", NumScalar, [ValueTypeFromArgsFP]>;
+def Daphne_EwLnOp : Daphne_EwUnaryOp<"ewLn", NumScalar, [ValueTypeFromArgsFP, DeclareOpInterfaceMethods<InferSparsityPatternOpInterface>]>;
+def Daphne_EwSqrtOp : Daphne_EwUnaryOp<"ewSqrt", NumScalar, [ValueTypeFromArgsFP, DeclareOpInterfaceMethods<InferSparsityPatternOpInterface>]>;
 
 // ----------------------------------------------------------------------------
 // Logical
@@ -351,13 +351,13 @@ class Daphne_EwBinaryOp<string name, Type scalarType, list<Trait> traits = []>
 // ----------------------------------------------------------------------------
 
 // TODO Make EwAddOp Commutative again (see #449).
-def Daphne_EwAddOp    : Daphne_EwBinaryOp<"ewAdd", AnyScalar, [ValueTypeFromArgs, CastArgsToResType/*, Commutative*/, EwSparseIfBoth, CUDASupport]> {
+def Daphne_EwAddOp    : Daphne_EwBinaryOp<"ewAdd", AnyScalar, [ValueTypeFromArgs, CastArgsToResType/*, Commutative*/, EwSparseIfBoth, CUDASupport, DeclareOpInterfaceMethods<InferSparsityPatternOpInterface>]> {
     let hasCanonicalizeMethod = 1;
 }
-def Daphne_EwSubOp    : Daphne_EwBinaryOp<"ewSub", NumScalar, [ValueTypeFromArgs, CastArgsToResType, EwSparseIfBoth, CUDASupport]> {
+def Daphne_EwSubOp    : Daphne_EwBinaryOp<"ewSub", NumScalar, [ValueTypeFromArgs, CastArgsToResType, EwSparseIfBoth, CUDASupport, DeclareOpInterfaceMethods<InferSparsityPatternOpInterface>]> {
     let hasCanonicalizeMethod = 1;
 }
-def Daphne_EwMulOp    : Daphne_EwBinaryOp<"ewMul", NumScalar, [ValueTypeFromArgs, CastArgsToResType, Commutative, EwSparseIfEither, CUDASupport]> {
+def Daphne_EwMulOp    : Daphne_EwBinaryOp<"ewMul", NumScalar, [ValueTypeFromArgs, CastArgsToResType, Commutative, EwSparseIfEither, CUDASupport, DeclareOpInterfaceMethods<InferSparsityPatternOpInterface>]> {
     let hasCanonicalizeMethod = 1;
 }
 def Daphne_EwDivOp    : Daphne_EwBinaryOp<"ewDiv", NumScalar, [ValueTypeFromArgs, CastArgsToResType, CUDASupport]> {
@@ -1048,7 +1048,7 @@ def Daphne_CTableOp : Daphne_Op<"ctable", [
 def Daphne_SyrkOp : Daphne_Op<"syrk", [
     TypeFromFirstArg,
     DeclareOpInterfaceMethods<VectorizableOpInterface>,
-    NumRowsFromArgNumCols, NumColsFromArg, CUDASupport,FPGAOPENCLSupport, 
+    NumRowsFromArgNumCols, NumColsFromArg, CUDASupport,FPGAOPENCLSupport,
     CastFirstArgToResType
 ]> {
     let summary = [{Performs the operation `t(A) @ A` if `transLeft` is `true`; or `A @ t(A)`, otherwise.}];
@@ -2020,7 +2020,7 @@ def Daphne_LengthOp : Daphne_Op<"length", [
     DataTypeSca, ValueTypeSize
 ]> {
     let summary = "Returns the number of elements in the given list";
-    
+
     let arguments = (ins ListOrU:$arg);
     let results = (outs Size:$res);
 }
@@ -2029,7 +2029,7 @@ def Daphne_AppendOp : Daphne_Op<"append", [
     TypeFromFirstArg
 ]> {
     let summary = "Appends the given element to the end of the given list";
-    
+
     let arguments = (ins ListOrU:$argList, MatrixOrU:$elem);
     let results = (outs ListOrU:$resList);
 }
@@ -2038,7 +2038,7 @@ def Daphne_RemoveOp : Daphne_Op<"remove", [
     DeclareOpInterfaceMethods<InferTypesOpInterface>
 ]> {
     let summary = "Removes and returns the element at the specified index from the given list";
-    
+
     let arguments = (ins ListOrU:$argList, Size:$idx);
     let results = (outs ListOrU:$resList, MatrixOrU:$elem);
 }

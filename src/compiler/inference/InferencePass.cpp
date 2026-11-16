@@ -32,10 +32,11 @@ using namespace mlir;
 
 daphne::InferenceConfig::InferenceConfig(bool partialInferenceAllowed, bool typeInference, bool shapeInference,
                                          bool frameLabelInference, bool sparsityInference, bool symmetricInference,
-                                         bool distinctInference, bool boundsInference)
+                                         bool distinctInference, bool boundsInference, bool sparsityPatternInference)
     : partialInferenceAllowed(partialInferenceAllowed), typeInference(typeInference), shapeInference(shapeInference),
       frameLabelInference(frameLabelInference), sparsityInference(sparsityInference),
-      symmetricInference(symmetricInference), distinctInference(distinctInference), boundsInference(boundsInference) {}
+      symmetricInference(symmetricInference), distinctInference(distinctInference), boundsInference(boundsInference),
+      sparsityPatternInference(sparsityPatternInference) {}
 
 namespace {
 void castOperandIf(OpBuilder &builder, Operation *op, size_t operandIdx, Type type) {
@@ -88,7 +89,7 @@ Type getTypeWithCommonInfo(Type t1, Type t2) {
                                        (repr1 == repr2) ? repr1 : daphne::MatrixRepresentation::Default,
                                        (sym1 == sym2) ? sym1 : BoolOrUnknown::Unknown, (dist1 == dist2) ? dist1 : -1,
                                        (lowerBound1 == lowerBound2) ? lowerBound1 : std::nullopt,
-                                       (upperBound1 == upperBound2) ? upperBound1 : std::nullopt);
+                                       (upperBound1 == upperBound2) ? upperBound1 : std::nullopt, -1);
     } else if (frm1 && frm2) { // both types are frames
         const std::vector<Type> cts1 = frm1.getColumnTypes();
         const std::vector<Type> cts2 = frm2.getColumnTypes();
@@ -297,6 +298,28 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
                         const Type rt = rv.getType();
                         if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
                             rv.setType(mt.withBounds(lowerBound, upperBound));
+                    }
+                }
+            }
+            if (cfg.sparsityPatternInference && returnsUnknownSparsityPattern(op)) {
+                // Try to infer the sparsity pattern ID of all results of this operation.
+                std::vector<ssize_t> sparsityPatternIDs = daphne::tryInferSparsityPattern(op);
+                const size_t numRes = op->getNumResults();
+                if (sparsityPatternIDs.size() != numRes)
+                    throw ErrorHandler::compilerError(
+                        op, "InferencePass",
+                        "sparsity pattern inference for op " + op->getName().getStringRef().str() + " returned " +
+                            std::to_string(sparsityPatternIDs.size()) + " entries, but the op has " +
+                            std::to_string(numRes) + " results");
+                // Set the inferred sparsity pattern IDs on all results of this operation.
+                for (size_t i = 0; i < numRes; i++) {
+                    if (llvm::isa<mlir::daphne::MatrixType>(op->getResultTypes()[i])) {
+                        const ssize_t sparsityPatternID = sparsityPatternIDs[i];
+
+                        Value rv = op->getResult(i);
+                        const Type rt = rv.getType();
+                        if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                            rv.setType(mt.withSparsityPatternID(sparsityPatternID));
                     }
                 }
             }
@@ -555,6 +578,14 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
         return llvm::any_of(op->getResultTypes(), [](Type rt) {
             if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
                 return !mt.getLowerBound().has_value() || !mt.getUpperBound().has_value();
+            return false;
+        });
+    }
+
+    static bool returnsUnknownSparsityPattern(Operation *op) {
+        return llvm::any_of(op->getResultTypes(), [](Type rt) {
+            if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                return mt.getSparsityPatternID() == -1;
             return false;
         });
     }

@@ -31,7 +31,8 @@
 namespace mlir::daphne {
 struct InferenceConfig {
     InferenceConfig(bool partialInferenceAllowed, bool typeInference, bool shapeInference, bool frameLabelInference,
-                    bool sparsityInference, bool symmetricInference, bool distinctInference, bool boundsInference);
+                    bool sparsityInference, bool symmetricInference, bool distinctInference, bool boundsInference,
+                    bool sparsityPatternInference = true);
     bool partialInferenceAllowed;
     bool typeInference;
     bool shapeInference;
@@ -40,6 +41,7 @@ struct InferenceConfig {
     bool symmetricInference;
     bool distinctInference;
     bool boundsInference;
+    bool sparsityPatternInference;
 };
 
 // alphabetically sorted list of passes
