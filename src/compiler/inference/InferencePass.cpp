@@ -31,10 +31,11 @@
 using namespace mlir;
 
 daphne::InferenceConfig::InferenceConfig(bool partialInferenceAllowed, bool typeInference, bool shapeInference,
-                                         bool frameLabelInference, bool sparsityInference, bool symmetricInference)
+                                         bool frameLabelInference, bool sparsityInference, bool symmetricInference,
+                                         bool sparsityPatternInference)
     : partialInferenceAllowed(partialInferenceAllowed), typeInference(typeInference), shapeInference(shapeInference),
       frameLabelInference(frameLabelInference), sparsityInference(sparsityInference),
-      symmetricInference(symmetricInference) {}
+      symmetricInference(symmetricInference), sparsityPatternInference(sparsityPatternInference) {}
 
 namespace {
 void castOperandIf(OpBuilder &builder, Operation *op, size_t operandIdx, Type type) {
@@ -79,7 +80,7 @@ Type getTypeWithCommonInfo(Type t1, Type t2) {
                                        // TODO Maybe do approximate comparison of floating-point values.
                                        (sp1 == sp2) ? sp1 : -1,
                                        (repr1 == repr2) ? repr1 : daphne::MatrixRepresentation::Default,
-                                       (sym1 == sym2) ? sym1 : BoolOrUnknown::Unknown);
+                                       (sym1 == sym2) ? sym1 : BoolOrUnknown::Unknown, -1);
     } else if (frm1 && frm2) { // both types are frames
         const std::vector<Type> cts1 = frm1.getColumnTypes();
         const std::vector<Type> cts2 = frm2.getColumnTypes();
@@ -242,6 +243,28 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
                                                                   std::to_string(i) +
                                                                   ", since it "
                                                                   "is not a matrix");
+                    }
+                }
+            }
+            if (cfg.sparsityPatternInference && returnsUnknownSparsityPattern(op)) {
+                // Try to infer the sparsity pattern ID of all results of this operation.
+                std::vector<ssize_t> sparsityPatternIDs = daphne::tryInferSparsityPattern(op);
+                const size_t numRes = op->getNumResults();
+                if (sparsityPatternIDs.size() != numRes)
+                    throw ErrorHandler::compilerError(
+                        op, "InferencePass",
+                        "sparsity pattern inference for op " + op->getName().getStringRef().str() + " returned " +
+                            std::to_string(sparsityPatternIDs.size()) + " entries, but the op has " +
+                            std::to_string(numRes) + " results");
+                // Set the inferred sparsity pattern IDs on all results of this operation.
+                for (size_t i = 0; i < numRes; i++) {
+                    if (llvm::isa<mlir::daphne::MatrixType>(op->getResultTypes()[i])) {
+                        const ssize_t sparsityPatternID = sparsityPatternIDs[i];
+
+                        Value rv = op->getResult(i);
+                        const Type rt = rv.getType();
+                        if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                            rv.setType(mt.withSparsityPatternID(sparsityPatternID));
                     }
                 }
             }
@@ -488,8 +511,18 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
         return WalkResult::advance();
     };
 
+    static bool returnsUnknownSparsityPattern(Operation *op) {
+        return llvm::any_of(op->getResultTypes(), [](Type rt) {
+            if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                return mt.getSparsityPatternID() == -1;
+            return false;
+        });
+    }
+
   public:
     InferencePass(daphne::InferenceConfig cfg) : cfg(cfg) {}
+
+    void getDependentDialects(DialectRegistry &registry) const override { registry.insert<scf::SCFDialect>(); }
 
     void runOnOperation() override {
         func::FuncOp f = getOperation();

@@ -131,6 +131,8 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
         double sparsity = -1.0;
         MatrixRepresentation representation = MatrixRepresentation::Default; // default is dense
         BoolOrUnknown symmetric = BoolOrUnknown::Unknown;
+        ssize_t sparsityPatternID = -1;
+
         mlir::Type elementType;
         SmallVector<int64_t, 2> dimensions;
         if (parser.parseLess() || parser.parseDimensionList(dimensions) || parser.parseType(elementType))
@@ -158,6 +160,18 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
                     return nullptr;
                 }
                 representation = stringToMatrixRepresentation(repName.str());
+            } else if (succeeded(parser.parseOptionalKeyword("pattern"))) {
+                if (sparsityPatternID != -1) {
+                    parser.emitError(parser.getCurrentLocation(), "duplicate sparsity pattern classification");
+                    return nullptr;
+                }
+                if (parser.parseLSquare() || parser.parseInteger(sparsityPatternID) || parser.parseRSquare())
+                    return nullptr;
+                if (sparsityPatternID < 0) {
+                    parser.emitError(parser.getCurrentLocation(),
+                                     "sparsity pattern classification must be nonnegative");
+                    return nullptr;
+                }
             } else if (succeeded(parser.parseOptionalKeyword("symmetric"))) {
                 llvm::StringRef symmetricStr;
                 if (parser.parseLSquare() || parser.parseKeyword(&symmetricStr) || parser.parseRSquare()) {
@@ -173,7 +187,7 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
         }
 
         return MatrixType::get(parser.getBuilder().getContext(), elementType, numRows, numCols, sparsity,
-                               representation, symmetric);
+                               representation, symmetric, sparsityPatternID);
     } else if (keyword == "Frame") {
         ssize_t numRows = -1;
         ssize_t numCols = -1;
@@ -204,6 +218,8 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
             return nullptr;
         }
         return mlir::daphne::HandleType::get(parser.getBuilder().getContext(), dataType);
+    } else if (keyword == "Unknown") {
+        return UnknownType::get(parser.getBuilder().getContext());
     } else if (keyword == "String") {
         return StringType::get(parser.getBuilder().getContext());
     } else if (keyword == "Column") {
@@ -253,6 +269,8 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         if (symmetric != BoolOrUnknown::Unknown) {
             os << ":symmetric[" << boolOrUnknownToString(symmetric) << ']';
         }
+        if (t.getSparsityPatternID() != -1)
+            os << ":pattern[" << t.getSparsityPatternID() << ']';
         os << '>';
     } else if (auto t = llvm::dyn_cast<mlir::daphne::FrameType>(type)) {
         os << "Frame<" << unknownStrIf(t.getNumRows()) << "x[" << unknownStrIf(t.getNumCols()) << ": ";
@@ -352,9 +370,10 @@ namespace detail {
 
 // Constructor implementation
 MatrixTypeStorage::MatrixTypeStorage(::mlir::Type elementType, ssize_t numRows, ssize_t numCols, double sparsity,
-                                     MatrixRepresentation representation, BoolOrUnknown symmetric)
+                                     MatrixRepresentation representation, BoolOrUnknown symmetric,
+                                     ssize_t sparsityPatternID)
     : elementType(elementType), numRows(numRows), numCols(numCols), sparsity(sparsity), representation(representation),
-      symmetric(symmetric) {}
+      symmetric(symmetric), sparsityPatternID(sparsityPatternID) {}
 
 // Equality operator implementation
 bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
@@ -370,6 +389,8 @@ bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
         return false;
     if (symmetric != std::get<5>(tblgenKey))
         return false;
+    if (sparsityPatternID != std::get<6>(tblgenKey))
+        return false;
     return true;
 }
 
@@ -377,7 +398,7 @@ bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
 ::llvm::hash_code MatrixTypeStorage::hashKey(const KeyTy &tblgenKey) {
     auto float_hashable = static_cast<ssize_t>(std::get<3>(tblgenKey) / epsilon);
     return ::llvm::hash_combine(std::get<0>(tblgenKey), std::get<1>(tblgenKey), std::get<2>(tblgenKey), float_hashable,
-                                std::get<4>(tblgenKey), std::get<5>(tblgenKey));
+                                std::get<4>(tblgenKey), std::get<5>(tblgenKey), std::get<6>(tblgenKey));
 }
 
 // Construct implementation
@@ -388,9 +409,10 @@ MatrixTypeStorage *MatrixTypeStorage::construct(::mlir::TypeStorageAllocator &al
     auto sparsity = std::get<3>(tblgenKey);
     auto representation = std::get<4>(tblgenKey);
     auto symmetric = std::get<5>(tblgenKey);
+    auto sparsityPatternID = std::get<6>(tblgenKey);
 
     return new (allocator.allocate<MatrixTypeStorage>())
-        MatrixTypeStorage(elementType, numRows, numCols, sparsity, representation, symmetric);
+        MatrixTypeStorage(elementType, numRows, numCols, sparsity, representation, symmetric, sparsityPatternID);
 }
 
 } // namespace detail
@@ -400,12 +422,14 @@ ssize_t MatrixType::getNumCols() const { return getImpl()->numCols; }
 double MatrixType::getSparsity() const { return getImpl()->sparsity; }
 MatrixRepresentation MatrixType::getRepresentation() const { return getImpl()->representation; }
 BoolOrUnknown MatrixType::getSymmetric() const { return getImpl()->symmetric; }
+ssize_t MatrixType::getSparsityPatternID() const { return getImpl()->sparsityPatternID; }
+
 } // namespace mlir::daphne
 
 ::mlir::LogicalResult mlir::daphne::MatrixType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
                                                        Type elementType, ssize_t numRows, ssize_t numCols,
                                                        double sparsity, MatrixRepresentation rep,
-                                                       BoolOrUnknown symmetric) {
+                                                       BoolOrUnknown symmetric, ssize_t sparsityPatternID) {
     if ((
             // Value type is unknown.
             llvm::isa<mlir::daphne::UnknownType>(elementType)
