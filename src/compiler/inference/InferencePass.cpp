@@ -31,10 +31,11 @@
 using namespace mlir;
 
 daphne::InferenceConfig::InferenceConfig(bool partialInferenceAllowed, bool typeInference, bool shapeInference,
-                                         bool frameLabelInference, bool sparsityInference, bool symmetricInference)
+                                         bool frameLabelInference, bool sparsityInference, bool symmetricInference,
+                                         bool minMaxInference)
     : partialInferenceAllowed(partialInferenceAllowed), typeInference(typeInference), shapeInference(shapeInference),
       frameLabelInference(frameLabelInference), sparsityInference(sparsityInference),
-      symmetricInference(symmetricInference) {}
+      symmetricInference(symmetricInference), minMaxInference(minMaxInference) {}
 
 namespace {
 void castOperandIf(OpBuilder &builder, Operation *op, size_t operandIdx, Type type) {
@@ -75,11 +76,16 @@ Type getTypeWithCommonInfo(Type t1, Type t2) {
         const daphne::MatrixRepresentation repr2 = mat2.getRepresentation();
         const BoolOrUnknown sym1 = mat1.getSymmetric();
         const BoolOrUnknown sym2 = mat2.getSymmetric();
-        return daphne::MatrixType::get(ctx, (vt1 == vt2) ? vt1 : u, (nr1 == nr2) ? nr1 : -1, (nc1 == nc2) ? nc1 : -1,
-                                       // TODO Maybe do approximate comparison of floating-point values.
-                                       (sp1 == sp2) ? sp1 : -1,
-                                       (repr1 == repr2) ? repr1 : daphne::MatrixRepresentation::Default,
-                                       (sym1 == sym2) ? sym1 : BoolOrUnknown::Unknown);
+        const std::optional<double> minValue1 = mat1.getMinValue();
+        const std::optional<double> minValue2 = mat2.getMinValue();
+        const std::optional<double> maxValue1 = mat1.getMaxValue();
+        const std::optional<double> maxValue2 = mat2.getMaxValue();
+        return daphne::MatrixType::get(
+            ctx, (vt1 == vt2) ? vt1 : u, (nr1 == nr2) ? nr1 : -1, (nc1 == nc2) ? nc1 : -1,
+            // TODO Maybe do approximate comparison of floating-point values.
+            (sp1 == sp2) ? sp1 : -1, (repr1 == repr2) ? repr1 : daphne::MatrixRepresentation::Default,
+            (sym1 == sym2) ? sym1 : BoolOrUnknown::Unknown, (minValue1 == minValue2) ? minValue1 : std::nullopt,
+            (maxValue1 == maxValue2) ? maxValue1 : std::nullopt);
     } else if (frm1 && frm2) { // both types are frames
         const std::vector<Type> cts1 = frm1.getColumnTypes();
         const std::vector<Type> cts2 = frm2.getColumnTypes();
@@ -242,6 +248,30 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
                                                                   std::to_string(i) +
                                                                   ", since it "
                                                                   "is not a matrix");
+                    }
+                }
+            }
+            if (cfg.minMaxInference && returnsUnknownMinMax(op)) {
+                // Try to infer the min max of all results of this operation.
+                std::vector<std::pair<std::optional<double>, std::optional<double>>> minmaxs =
+                    daphne::tryInferMinMax(op);
+                const size_t numRes = op->getNumResults();
+                if (minmaxs.size() != numRes)
+                    throw ErrorHandler::compilerError(op, "InferencePass",
+                                                      "minmax inference for op " + op->getName().getStringRef().str() +
+                                                          " returned " + std::to_string(minmaxs.size()) +
+                                                          " entries, but the op has " + std::to_string(numRes) +
+                                                          " results");
+                // Set the infered values on all results of this operation.
+                for (size_t i = 0; i < numRes; i++) {
+                    if (llvm::isa<mlir::daphne::MatrixType>(op->getResultTypes()[i])) {
+                        std::optional<double> minValue = minmaxs[i].first;
+                        std::optional<double> maxValue = minmaxs[i].second;
+
+                        Value rv = op->getResult(i);
+                        const Type rt = rv.getType();
+                        if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                            rv.setType(mt.withMinMax(minValue, maxValue));
                     }
                 }
             }
@@ -488,8 +518,18 @@ class InferencePass : public PassWrapper<InferencePass, OperationPass<func::Func
         return WalkResult::advance();
     };
 
+    static bool returnsUnknownMinMax(Operation *op) {
+        return llvm::any_of(op->getResultTypes(), [](Type rt) {
+            if (auto mt = llvm::dyn_cast<daphne::MatrixType>(rt))
+                return !mt.getMinValue().has_value() || !mt.getMaxValue().has_value();
+            return false;
+        });
+    }
+
   public:
     InferencePass(daphne::InferenceConfig cfg) : cfg(cfg) {}
+
+    void getDependentDialects(DialectRegistry &registry) const override { registry.insert<scf::SCFDialect>(); }
 
     void runOnOperation() override {
         func::FuncOp f = getOperation();

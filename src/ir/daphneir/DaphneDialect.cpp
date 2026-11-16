@@ -131,6 +131,9 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
         double sparsity = -1.0;
         MatrixRepresentation representation = MatrixRepresentation::Default; // default is dense
         BoolOrUnknown symmetric = BoolOrUnknown::Unknown;
+        std::optional<double> minValue = std::nullopt;
+        std::optional<double> maxValue = std::nullopt;
+
         mlir::Type elementType;
         SmallVector<int64_t, 2> dimensions;
         if (parser.parseLess() || parser.parseDimensionList(dimensions) || parser.parseType(elementType))
@@ -164,6 +167,16 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
                     return nullptr;
                 }
                 symmetric = stringToBoolOrUnknown(symmetricStr.str());
+            } else if (succeeded(parser.parseOptionalKeyword("min"))) {
+                double value;
+                if (minValue || parser.parseLSquare() || parser.parseFloat(value) || parser.parseRSquare())
+                    return nullptr;
+                minValue = value;
+            } else if (succeeded(parser.parseOptionalKeyword("max"))) {
+                double value;
+                if (maxValue || parser.parseLSquare() || parser.parseFloat(value) || parser.parseRSquare())
+                    return nullptr;
+                maxValue = value;
             } else {
                 return nullptr;
             }
@@ -173,7 +186,7 @@ mlir::Type mlir::daphne::DaphneDialect::parseType(mlir::DialectAsmParser &parser
         }
 
         return MatrixType::get(parser.getBuilder().getContext(), elementType, numRows, numCols, sparsity,
-                               representation, symmetric);
+                               representation, symmetric, minValue, maxValue);
     } else if (keyword == "Frame") {
         ssize_t numRows = -1;
         ssize_t numCols = -1;
@@ -253,6 +266,10 @@ void mlir::daphne::DaphneDialect::printType(mlir::Type type, mlir::DialectAsmPri
         if (symmetric != BoolOrUnknown::Unknown) {
             os << ":symmetric[" << boolOrUnknownToString(symmetric) << ']';
         }
+        if (t.getMinValue())
+            os << ":min[" << llvm::APFloat(*t.getMinValue()) << ']';
+        if (t.getMaxValue())
+            os << ":max[" << llvm::APFloat(*t.getMaxValue()) << ']';
         os << '>';
     } else if (auto t = llvm::dyn_cast<mlir::daphne::FrameType>(type)) {
         os << "Frame<" << unknownStrIf(t.getNumRows()) << "x[" << unknownStrIf(t.getNumCols()) << ": ";
@@ -352,9 +369,10 @@ namespace detail {
 
 // Constructor implementation
 MatrixTypeStorage::MatrixTypeStorage(::mlir::Type elementType, ssize_t numRows, ssize_t numCols, double sparsity,
-                                     MatrixRepresentation representation, BoolOrUnknown symmetric)
+                                     MatrixRepresentation representation, BoolOrUnknown symmetric,
+                                     std::optional<double> minValue, std::optional<double> maxValue)
     : elementType(elementType), numRows(numRows), numCols(numCols), sparsity(sparsity), representation(representation),
-      symmetric(symmetric) {}
+      symmetric(symmetric), minValue(minValue), maxValue(maxValue) {}
 
 // Equality operator implementation
 bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
@@ -370,6 +388,10 @@ bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
         return false;
     if (symmetric != std::get<5>(tblgenKey))
         return false;
+    if (minValue != std::get<6>(tblgenKey))
+        return false;
+    if (maxValue != std::get<7>(tblgenKey))
+        return false;
     return true;
 }
 
@@ -377,7 +399,9 @@ bool MatrixTypeStorage::operator==(const KeyTy &tblgenKey) const {
 ::llvm::hash_code MatrixTypeStorage::hashKey(const KeyTy &tblgenKey) {
     auto float_hashable = static_cast<ssize_t>(std::get<3>(tblgenKey) / epsilon);
     return ::llvm::hash_combine(std::get<0>(tblgenKey), std::get<1>(tblgenKey), std::get<2>(tblgenKey), float_hashable,
-                                std::get<4>(tblgenKey), std::get<5>(tblgenKey));
+                                std::get<4>(tblgenKey), std::get<5>(tblgenKey),
+                                std::hash<std::optional<double>>()(std::get<6>(tblgenKey)),
+                                std::hash<std::optional<double>>()(std::get<7>(tblgenKey)));
 }
 
 // Construct implementation
@@ -388,9 +412,11 @@ MatrixTypeStorage *MatrixTypeStorage::construct(::mlir::TypeStorageAllocator &al
     auto sparsity = std::get<3>(tblgenKey);
     auto representation = std::get<4>(tblgenKey);
     auto symmetric = std::get<5>(tblgenKey);
+    auto minValue = std::get<6>(tblgenKey);
+    auto maxValue = std::get<7>(tblgenKey);
 
     return new (allocator.allocate<MatrixTypeStorage>())
-        MatrixTypeStorage(elementType, numRows, numCols, sparsity, representation, symmetric);
+        MatrixTypeStorage(elementType, numRows, numCols, sparsity, representation, symmetric, minValue, maxValue);
 }
 
 } // namespace detail
@@ -400,12 +426,16 @@ ssize_t MatrixType::getNumCols() const { return getImpl()->numCols; }
 double MatrixType::getSparsity() const { return getImpl()->sparsity; }
 MatrixRepresentation MatrixType::getRepresentation() const { return getImpl()->representation; }
 BoolOrUnknown MatrixType::getSymmetric() const { return getImpl()->symmetric; }
+std::optional<double> MatrixType::getMinValue() const { return getImpl()->minValue; }
+std::optional<double> MatrixType::getMaxValue() const { return getImpl()->maxValue; }
+
 } // namespace mlir::daphne
 
 ::mlir::LogicalResult mlir::daphne::MatrixType::verify(::llvm::function_ref<::mlir::InFlightDiagnostic()> emitError,
                                                        Type elementType, ssize_t numRows, ssize_t numCols,
                                                        double sparsity, MatrixRepresentation rep,
-                                                       BoolOrUnknown symmetric) {
+                                                       BoolOrUnknown symmetric, std::optional<double> minValue,
+                                                       std::optional<double> maxValue) {
     if ((
             // Value type is unknown.
             llvm::isa<mlir::daphne::UnknownType>(elementType)
