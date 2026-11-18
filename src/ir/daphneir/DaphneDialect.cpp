@@ -523,3 +523,23 @@ std::optional<double> MatrixType::getUpperBound() const { return getImpl()->uppe
         return mlir::failure();
     return mlir::success();
 }
+
+::mlir::LogicalResult mlir::daphne::AnalyzeDataOp::verify() {
+    Type type = getArg().getType();
+    if (!isa<MatrixType, ColumnType>(type))
+        return emitOpError("requires a numeric matrix or column");
+    Type element = CompilerUtils::getValueType(type);
+    const bool supported = element.isF32() || element.isF64() || element.isSignedInteger(8) ||
+                           element.isUnsignedInteger(8) || element.isSignedInteger(32) ||
+                           element.isUnsignedInteger(32) || element.isSignedInteger(64) ||
+                           element.isUnsignedInteger(64);
+    if (!supported)
+        return emitOpError("requires a numeric matrix or column (f32, f64, si/ui8, si/ui32, si/ui64)");
+    if (isa<ColumnType>(type))
+        for (Value request : {getAnalyzeSparsity(), getAnalyzeSymmetric(), getAnalyzeDistinct()}) {
+            auto [constant, enabled] = CompilerUtils::isConstant<bool>(request);
+            if (!constant || enabled)
+                return emitOpError("columns support bounds acquisition only");
+        }
+    return success();
+}

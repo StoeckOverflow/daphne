@@ -18,6 +18,7 @@
 
 #include <api/daphnelib/DaphneLibResult.h>
 #include <compiler/catalog/KernelCatalog.h>
+#include <ir/daphneir/DataPropertyTypes.h>
 #include <runtime/local/datastructures/IAllocationDescriptor.h>
 #include <runtime/local/vectorized/LoadPartitioningDefs.h>
 #include <util/DaphneLogger.h>
@@ -69,6 +70,8 @@ struct DaphneUserConfig {
     bool debugMultiThreading = false;
     bool use_fpgaopencl = false;
     bool enable_profiling = false;
+
+    AcquisitionMode acquisitionMode = AcquisitionMode::Exact;
 
     bool debug_llvm = false;
     bool explain_columnar = false;

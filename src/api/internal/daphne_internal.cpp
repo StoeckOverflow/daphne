@@ -236,6 +236,8 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
     static opt<bool> noPhyOpSelection("no-phy-op-selection", cat(daphneOptions),
                                       desc("Switch off physical operator selection, use default kernels for "
                                            "all operations"));
+    static opt<string> acquisitionMode("acquisition-mode", cat(daphneOptions),
+                                       desc("Default acquisition strategy: exact, approx, early-abort"), init("exact"));
     static opt<bool> selectMatrixRepr("select-matrix-repr", cat(daphneOptions),
                                       desc("Automatically choose physical matrix representations "
                                            "(e.g., dense/sparse)"));
@@ -619,6 +621,12 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
     // Create DaphneIrExecutor and get MLIR context
     // ************************************************************************
 
+    auto mode = mlir::daphne::parseAcquisitionMode(acquisitionMode.getValue());
+    if (!mode) {
+        logErrorDaphneLibAware(daphneLibRes, "acquisition-mode expects exact, approx, or early-abort");
+        return StatusCode::PARSER_ERROR;
+    }
+    user_config.acquisitionMode = *mode;
     // Creates an MLIR context and loads the required MLIR dialects.
     DaphneIrExecutor executor(selectMatrixRepr, user_config);
     mlir::MLIRContext *mctx = executor.getContext();

@@ -7861,5 +7861,66 @@
             [["CSRMatrix", "bool"]],
             [["CSRMatrix", "std::string"]]
         ]
+    },
+    {
+        "kernelTemplate": {
+            "header": "AnalyzeDataDispatch.h",
+            "opName": "analyzeData",
+            "returnType": "void",
+            "templateParams": [
+                {
+                    "name": "DTArg",
+                    "isDataType": true
+                }
+            ],
+            "runtimeParams": [
+                {
+                    "type": "const DTArg *",
+                    "name": "arg"
+                },
+                {
+                    "type": "bool",
+                    "name": "analyzeSparsity"
+                },
+                {
+                    "type": "bool",
+                    "name": "analyzeSymmetric"
+                },
+                {
+                    "type": "bool",
+                    "name": "analyzeMinMax"
+                },
+                {
+                    "type": "bool",
+                    "name": "analyzeDistinct"
+                }
+            ]
+        },
+        "instantiations": [
+            [["DenseMatrix", "double"]],
+            [["DenseMatrix", "float"]],
+            [["DenseMatrix", "int64_t"]],
+            [["DenseMatrix", "int32_t"]],
+            [["DenseMatrix", "int8_t"]],
+            [["DenseMatrix", "uint64_t"]],
+            [["DenseMatrix", "uint32_t"]],
+            [["DenseMatrix", "uint8_t"]],
+            [["CSRMatrix", "double"]],
+            [["CSRMatrix", "float"]],
+            [["CSRMatrix", "int64_t"]],
+            [["CSRMatrix", "int32_t"]],
+            [["CSRMatrix", "int8_t"]],
+            [["CSRMatrix", "uint64_t"]],
+            [["CSRMatrix", "uint32_t"]],
+            [["CSRMatrix", "uint8_t"]],
+            [["Column", "double"]],
+            [["Column", "float"]],
+            [["Column", "int64_t"]],
+            [["Column", "int32_t"]],
+            [["Column", "int8_t"]],
+            [["Column", "uint64_t"]],
+            [["Column", "uint32_t"]],
+            [["Column", "uint8_t"]]
+        ]
     }
 ]

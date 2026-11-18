@@ -18,7 +18,7 @@
 #include <numeric>
 #include <runtime/local/datagen/GenGivenVals.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
-#include <runtime/local/kernels/AnalyzeData.h>
+#include <runtime/local/kernels/AnalyzeDataDispatch.h>
 #include <tags.h>
 #include <vector>
 
@@ -459,4 +459,104 @@ TEMPLATE_TEST_CASE("analyzeData distinct modes views", TAG_KERNELS, DenseMatrix<
     CHECK(view->numDistinct == 2);
     CHECK_FALSE(view->numDistinctEstimate.has_value());
     DataObjectFactory::destroy(view, matrix);
+}
+
+TEMPLATE_TEST_CASE("analyzeData request dispatch", TAG_KERNELS, DenseMatrix<double>, CSRMatrix<double>) {
+    using DT = TestType;
+    DaphneUserConfig config;
+    DaphneContext context(config, KernelDispatchMapping::instance(), Statistics::instance(), PropertyLogger::instance(),
+                          StringRefCounter::instance());
+    SECTION("request combinations in default exact mode") {
+        const bool sparsity = GENERATE(false, true);
+        const bool symmetric = GENERATE(false, true);
+        const bool bounds = GENERATE(false, true);
+        const bool distinct = GENERATE(false, true);
+        CAPTURE(sparsity, symmetric, bounds, distinct);
+        CHECK(config.acquisitionMode == AcquisitionMode::Exact);
+        auto *matrix = genGivenVals<DT>(1, {0.0, -0.0, 2.0, 2.0});
+        matrix->sparsity = -1;
+        matrix->symmetric = BoolOrUnknown::True;
+        matrix->lowerBound = -7;
+        matrix->upperBound = 7;
+        matrix->numDistinct = -1;
+        matrix->numDistinctEstimate = 99;
+        matrix->numDistinctLowerBound = 99;
+        analyzeData(matrix, sparsity, symmetric, bounds, distinct, &context);
+        CHECK(matrix->sparsity == (sparsity ? 0.5 : -1));
+        // The matrix is rectangular; requesting symmetry must overwrite the sentinel.
+        CHECK(matrix->symmetric == (symmetric ? BoolOrUnknown::False : BoolOrUnknown::True));
+        CHECK(matrix->lowerBound == (bounds ? 0 : -7));
+        CHECK(matrix->upperBound == (bounds ? 2 : 7));
+        CHECK(matrix->numDistinct == (distinct ? 2 : -1));
+        CHECK(matrix->numDistinctEstimate == (distinct ? std::nullopt : std::optional<double>(99)));
+        CHECK(matrix->numDistinctLowerBound == (distinct ? -1 : 99));
+        DataObjectFactory::destroy(matrix);
+    }
+    SECTION("mode selection with complete bounds and density scans") {
+        const auto mode = GENERATE(AcquisitionMode::Exact, AcquisitionMode::Approx, AcquisitionMode::EarlyAbort);
+        CAPTURE(int(mode));
+        config.acquisitionMode = mode;
+        constexpr size_t limit = BoundedDistinctAccumulator<double>::setLimit;
+        std::vector<double> values(limit + 2);
+        std::iota(values.begin(), values.end(), 0.0);
+        auto *matrix = genGivenVals<DT>(1, values);
+        std::optional<double> estimate;
+        if (mode == AcquisitionMode::Approx) {
+            acquire<ApproxDistinctAccumulator>(matrix);
+            estimate = matrix->numDistinctEstimate;
+            REQUIRE(estimate.has_value());
+        }
+        matrix->numDistinct = -1;
+        matrix->numDistinctEstimate = 99;
+        matrix->numDistinctLowerBound = 99;
+        analyzeData(matrix, true, false, true, true, &context);
+        CHECK(matrix->sparsity == Approx(double(values.size() - 1) / values.size()));
+        CHECK(matrix->lowerBound == 0);
+        CHECK(matrix->upperBound == double(values.size() - 1));
+        CHECK(matrix->numDistinct == (mode == AcquisitionMode::Exact ? ssize_t(values.size()) : -1));
+        CHECK(matrix->numDistinctEstimate == estimate);
+        CHECK(matrix->numDistinctLowerBound == (mode == AcquisitionMode::EarlyAbort ? ssize_t(limit + 1) : -1));
+        DataObjectFactory::destroy(matrix);
+    }
+    SECTION("invalid mode and missing context") {
+        auto *matrix = genGivenVals<DT>(1, {0.0, 2.0});
+        config.acquisitionMode = static_cast<AcquisitionMode>(99);
+        CHECK_THROWS_AS(analyzeData(matrix, false, false, false, true, &context), std::invalid_argument);
+        CHECK_THROWS_AS(analyzeData(matrix, true, false, false, false, nullptr), std::invalid_argument);
+        CHECK_NOTHROW(analyzeData(matrix, false, false, false, false, nullptr));
+        DataObjectFactory::destroy(matrix);
+    }
+}
+
+TEST_CASE("analyzeData column dispatch and acquisition mode parsing", TAG_KERNELS) {
+    SECTION("column bounds and rejected requests") {
+        DaphneUserConfig config;
+        DaphneContext context(config, KernelDispatchMapping::instance(), Statistics::instance(),
+                              PropertyLogger::instance(), StringRefCounter::instance());
+        const auto mode = GENERATE(AcquisitionMode::Exact, AcquisitionMode::Approx, AcquisitionMode::EarlyAbort);
+        CAPTURE(int(mode));
+        config.acquisitionMode = mode;
+        auto *column = DataObjectFactory::create<Column<int64_t>>(2, false);
+        column->getValues()[0] = -3;
+        column->getValues()[1] = 5;
+        column->lowerBound = 99;
+        column->upperBound = 99;
+        analyzeData(column, false, false, false, false, &context);
+        CHECK(column->lowerBound == 99);
+        CHECK(column->upperBound == 99);
+        analyzeData(column, false, false, true, false, &context);
+        CHECK(column->lowerBound == -3);
+        CHECK(column->upperBound == 5);
+        CHECK_THROWS_AS(analyzeData(column, true, false, false, false, &context), std::invalid_argument);
+        CHECK_THROWS_AS(analyzeData(column, false, true, false, false, &context), std::invalid_argument);
+        CHECK_THROWS_AS(analyzeData(column, false, false, false, true, &context), std::invalid_argument);
+        DataObjectFactory::destroy(column);
+    }
+    SECTION("mode names") {
+        CHECK(mlir::daphne::parseAcquisitionMode("exact") == AcquisitionMode::Exact);
+        CHECK(mlir::daphne::parseAcquisitionMode("approx") == AcquisitionMode::Approx);
+        CHECK(mlir::daphne::parseAcquisitionMode("early-abort") == AcquisitionMode::EarlyAbort);
+        CHECK_FALSE(mlir::daphne::parseAcquisitionMode("simd").has_value());
+        CHECK_FALSE(mlir::daphne::parseAcquisitionMode("").has_value());
+    }
 }

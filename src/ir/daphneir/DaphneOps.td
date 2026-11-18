@@ -1769,6 +1769,23 @@ def Daphne_StopOp : Daphne_Op<"stop"> {
     let results = (outs); // no results
 }
 
+def Daphne_AnalyzeDataOp : Daphne_Op<"analyzeData", [MemoryEffects<[MemRead, MemWrite]>]> {
+    let summary = "Acquire selected runtime property observations";
+    let description = [{
+        Acquires requested runtime observations on numeric matrices or columns.
+    }];
+
+    let arguments = (ins AnyTypeOf<[Matrix, Frame, Column]>:$arg,
+        BoolScalar:$analyzeSparsity,
+        BoolScalar:$analyzeSymmetric,
+        BoolScalar:$analyzeMinMax,
+        BoolScalar:$analyzeDistinct
+    );
+
+    let results = (outs); // no results
+    let hasVerifier = 1;
+}
+
 // ----------------------------------------------------------------------------
 // Low-level
 // ----------------------------------------------------------------------------

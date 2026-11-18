@@ -21,6 +21,7 @@ set(LIBS
         ${extension_libs}
 
         MLIRDaphne
+        DaphneCatalogParser
         MLIRBufferizationDialect
         MLIRBufferizationTransforms
         MLIRDaphneToLinalg
