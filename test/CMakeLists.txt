@@ -91,6 +91,7 @@ set(TEST_SOURCES
         runtime/local/io/ReadDaphneTest.cpp
         runtime/local/io/DaphneSerializerTest.cpp
 
+        runtime/local/kernels/AnalyzeDataTest.cpp
         runtime/local/kernels/AggAllTest.cpp
         runtime/local/kernels/AggColTest.cpp
         runtime/local/kernels/AggCumTest.cpp
