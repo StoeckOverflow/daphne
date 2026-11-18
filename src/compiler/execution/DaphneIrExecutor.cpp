@@ -186,6 +186,14 @@ bool DaphneIrExecutor::runPasses(mlir::ModuleOp module) {
     if (userConfig_.explain_phy_op_selection)
         pm.addPass(mlir::daphne::createPrintIRPass("IR after selecting physical operators:"));
 
+    if (userConfig_.adaptiveAnalyze) {
+        if (userConfig_.use_vectorized_exec || userConfig_.use_distributed || userConfig_.use_cuda ||
+            userConfig_.use_fpgaopencl || userConfig_.use_mlir_codegen || userConfig_.use_mlir_hybrid_codegen)
+            throw std::runtime_error("adaptiveAnalyze requires sequential CPU execution");
+        pm.addNestedPass<mlir::func::FuncOp>(
+            mlir::daphne::createAdaptiveAnalyzePropertiesPass(&userConfig_.kernelCatalog));
+    }
+
     pm.addNestedPass<mlir::func::FuncOp>(mlir::daphne::createAdaptTypesToKernelsPass());
     if (userConfig_.explain_type_adaptation)
         pm.addPass(mlir::daphne::createPrintIRPass("IR after type adaptation:"));

@@ -42,6 +42,8 @@ struct InferenceConfig {
     bool boundsInference;
 };
 
+std::unique_ptr<Pass> createAdaptiveAnalyzePropertiesPass(const KernelCatalog *catalog = nullptr);
+
 // alphabetically sorted list of passes
 std::unique_ptr<Pass> createAdaptTypesToKernelsPass();
 std::unique_ptr<Pass> createConvertDaphneToLinalgPass();

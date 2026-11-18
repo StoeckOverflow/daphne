@@ -236,6 +236,8 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
     static opt<bool> noPhyOpSelection("no-phy-op-selection", cat(daphneOptions),
                                       desc("Switch off physical operator selection, use default kernels for "
                                            "all operations"));
+    static opt<bool> adaptiveAnalyze("adaptiveAnalyze", cat(daphneOptions),
+                                     desc("Acquire operand properties declared by operation interfaces"), init(false));
     static opt<string> acquisitionMode("acquisition-mode", cat(daphneOptions),
                                        desc("Default acquisition strategy: exact, approx, early-abort"), init("exact"));
     static opt<bool> selectMatrixRepr("select-matrix-repr", cat(daphneOptions),
@@ -621,12 +623,19 @@ int startDAPHNE(int argc, const char **argv, DaphneLibResult *daphneLibRes, int 
     // Create DaphneIrExecutor and get MLIR context
     // ************************************************************************
 
+    user_config.adaptiveAnalyze = adaptiveAnalyze;
     auto mode = mlir::daphne::parseAcquisitionMode(acquisitionMode.getValue());
     if (!mode) {
         logErrorDaphneLibAware(daphneLibRes, "acquisition-mode expects exact, approx, or early-abort");
         return StatusCode::PARSER_ERROR;
     }
     user_config.acquisitionMode = *mode;
+    if (user_config.adaptiveAnalyze &&
+        (user_config.use_vectorized_exec || user_config.use_distributed || user_config.use_cuda ||
+         user_config.use_fpgaopencl || user_config.use_mlir_codegen || user_config.use_mlir_hybrid_codegen)) {
+        logErrorDaphneLibAware(daphneLibRes, "adaptiveAnalyze requires sequential CPU execution");
+        return StatusCode::PARSER_ERROR;
+    }
     // Creates an MLIR context and loads the required MLIR dialects.
     DaphneIrExecutor executor(selectMatrixRepr, user_config);
     mlir::MLIRContext *mctx = executor.getContext();

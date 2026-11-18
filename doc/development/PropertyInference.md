@@ -232,6 +232,23 @@ The data properties of an SSA value are displayed as a part of its type, whereby
 
 **TODO**
 
+## Automatic Runtime Property Acquisition
+
+`--adaptiveAnalyze` enables automatic acquisition of operand properties declared by the
+`PropertyUsage` operation interface. It is disabled by default.
+
+```sh
+./bin/daphne --adaptiveAnalyze --acquisition-mode=exact program.daphne
+```
+
+The planner inserts supported requests locally before the operation that declares their use,
+checks the existing kernel catalog, and avoids duplicate requests already covered by an acquisition
+in the local sequence. Automatic insertion currently supports sequential CPU execution only.
+
+`--acquisition-mode=exact|approx|early-abort` separately selects the acquisition strategy.
+Currently, it affects distinct counting only. The default is `exact`. Approximate observations
+and lower bounds must not be treated as exact counts.
+
 ## Data Property Exploitation
 
 **TODO**

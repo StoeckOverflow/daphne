@@ -71,6 +71,7 @@ struct DaphneUserConfig {
     bool use_fpgaopencl = false;
     bool enable_profiling = false;
 
+    bool adaptiveAnalyze = false;
     AcquisitionMode acquisitionMode = AcquisitionMode::Exact;
 
     bool debug_llvm = false;

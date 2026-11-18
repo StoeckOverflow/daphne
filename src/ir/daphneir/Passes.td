@@ -36,6 +36,11 @@ def DistributePipelines : Pass<"distribute-pipelines", "::mlir::func::FuncOp"> {
     let constructor = "mlir::daphne::createDistributePipelinesPass()";
 }
 
+def AdaptiveAnalyzeProperties : Pass<"adaptive-analyze-props", "::mlir::func::FuncOp"> {
+    let summary = "Acquire operand characteristics declared by property usage interfaces";
+    let constructor = "mlir::daphne::createAdaptiveAnalyzePropertiesPass()";
+}
+
 def Inference: Pass<"inference", "::mlir::func::FuncOp"> {
     let constructor = "mlir::daphne::createInferencePass()";
 }
