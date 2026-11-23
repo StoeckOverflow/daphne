@@ -15,10 +15,12 @@
  */
 
 #include <catch.hpp>
+#include <numeric>
 #include <runtime/local/datagen/GenGivenVals.h>
 #include <runtime/local/datastructures/DataObjectFactory.h>
 #include <runtime/local/kernels/AnalyzeData.h>
 #include <tags.h>
+#include <vector>
 
 using property_acquisition::BoundsAccumulator;
 using property_acquisition::DistinctAccumulator;
@@ -319,4 +321,142 @@ TEST_CASE("analyzeData accumulator multiplicity", TAG_KERNELS) {
     CHECK(lower == 0.0);
     CHECK(upper == 2.0);
     CHECK(distinct.finalize() == 2);
+}
+
+using property_acquisition::ApproxDistinctAccumulator;
+using property_acquisition::BoundedDistinctAccumulator;
+
+TEMPLATE_PRODUCT_TEST_CASE("analyzeData distinct mode transitions", TAG_KERNELS, (DenseMatrix, CSRMatrix),
+                           (double, int64_t)) {
+    auto *matrix = genGivenVals<TestType>(2, {0, 0, 1, 2, 3, 4});
+    CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+    CHECK(matrix->numDistinctLowerBound == -1);
+    acquire<DistinctAccumulator>(matrix);
+    CHECK(matrix->numDistinct == 5);
+    acquire<ApproxDistinctAccumulator>(matrix);
+    CHECK(matrix->numDistinct == -1);
+    CHECK(matrix->numDistinctEstimate == 5);
+    CHECK(matrix->numDistinctLowerBound == -1);
+    acquire<BoundsAccumulator, NonzeroAccumulator>(matrix);
+    CHECK(matrix->numDistinctEstimate == 5);
+    CHECK(matrix->numDistinct == -1);
+    acquire<BoundedDistinctAccumulator>(matrix);
+    CHECK(matrix->numDistinct == 5);
+    CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+    CHECK(matrix->numDistinctLowerBound == -1);
+    matrix->numDistinctEstimate = 99;
+    matrix->numDistinctLowerBound = 99;
+    acquire<DistinctAccumulator>(matrix);
+    CHECK(matrix->numDistinct == 5);
+    CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+    CHECK(matrix->numDistinctLowerBound == -1);
+    DataObjectFactory::destroy(matrix);
+}
+
+TEMPLATE_TEST_CASE("analyzeData bounded distinct limit", TAG_KERNELS, DenseMatrix<double>, CSRMatrix<double>) {
+    using DT = TestType;
+    constexpr size_t limit = BoundedDistinctAccumulator<double>::setLimit;
+    SECTION("below, at, and above the limit") {
+        for (size_t count : {limit - 1, limit, limit + 1, limit + 2}) {
+            CAPTURE(count);
+            std::vector<double> values(count);
+            std::iota(values.begin(), values.end(), 1.0);
+            auto *matrix = genGivenVals<DT>(1, values);
+            acquire<ApproxDistinctAccumulator>(matrix);
+            REQUIRE(matrix->numDistinctEstimate.has_value());
+            CHECK(std::isfinite(*matrix->numDistinctEstimate));
+            CHECK(*matrix->numDistinctEstimate > ApproxDistinctAccumulator<double>::sketchSize);
+            CHECK(*matrix->numDistinctEstimate <= count);
+            const double estimate = *matrix->numDistinctEstimate;
+            acquire<ApproxDistinctAccumulator>(matrix);
+            CHECK(matrix->numDistinctEstimate == estimate);
+            acquire<BoundedDistinctAccumulator>(matrix);
+            CHECK(matrix->numDistinct == (count <= limit ? ssize_t(count) : -1));
+            CHECK(matrix->numDistinctLowerBound == (count > limit ? ssize_t(limit + 1) : -1));
+            CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+            acquire<DistinctAccumulator>(matrix);
+            CHECK(matrix->numDistinct == ssize_t(count));
+            CHECK(matrix->numDistinctLowerBound == -1);
+            DataObjectFactory::destroy(matrix);
+        }
+    }
+    SECTION("other properties and NaNs are still scanned after truncation") {
+        std::vector<double> values(limit + 3);
+        std::iota(values.begin(), values.end(), 1.0);
+        values[limit + 1] = 10000;
+        values.back() = 0;
+        auto *matrix = genGivenVals<DT>(1, values, values.size());
+        acquire<BoundedDistinctAccumulator, BoundsAccumulator, NonzeroAccumulator>(matrix);
+        CHECK(matrix->numDistinct == -1);
+        CHECK(matrix->numDistinctLowerBound == ssize_t(limit + 1));
+        CHECK(matrix->lowerBound == 0);
+        CHECK(matrix->upperBound == 10000);
+        CHECK(matrix->sparsity == Approx(double(values.size() - 1) / values.size()));
+        matrix->set(0, values.size() - 1, NAN);
+        acquire<BoundedDistinctAccumulator>(matrix);
+        CHECK(matrix->numDistinct == -1);
+        CHECK(matrix->numDistinctLowerBound == -1);
+        CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+        DataObjectFactory::destroy(matrix);
+    }
+}
+
+TEMPLATE_TEST_CASE("analyzeData distinct modes zero and NaN semantics", TAG_KERNELS, DenseMatrix<double>,
+                   CSRMatrix<double>) {
+    using DT = TestType;
+    SECTION("empty and all-zero inputs") {
+        for (size_t count : {size_t(0), size_t(4)}) {
+            auto *matrix = genGivenVals<DT>(1, std::vector<double>(count, 0));
+            acquire<ApproxDistinctAccumulator>(matrix);
+            CHECK(matrix->numDistinct == (count ? -1 : 0));
+            CHECK(matrix->numDistinctEstimate == (count ? 1 : 0));
+            acquire<BoundedDistinctAccumulator>(matrix);
+            CHECK(matrix->numDistinct == (count ? 1 : 0));
+            CHECK(matrix->numDistinctLowerBound == -1);
+            CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+            DataObjectFactory::destroy(matrix);
+        }
+    }
+    SECTION("signed zero, infinity, NaN, and recovery") {
+        auto *matrix = genGivenVals<DT>(1, {0.0, -0.0, -INFINITY, INFINITY}, 4);
+        acquire<ApproxDistinctAccumulator>(matrix);
+        CHECK(matrix->numDistinctEstimate == 3);
+        acquire<BoundedDistinctAccumulator>(matrix);
+        CHECK(matrix->numDistinct == 3);
+        matrix->set(0, 0, NAN);
+        acquire<ApproxDistinctAccumulator>(matrix);
+        CHECK(matrix->numDistinct == -1);
+        CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+        acquire<BoundedDistinctAccumulator>(matrix);
+        CHECK(matrix->numDistinct == -1);
+        CHECK(matrix->numDistinctLowerBound == -1);
+        matrix->set(0, 0, 2);
+        acquire<ApproxDistinctAccumulator>(matrix);
+        CHECK(matrix->numDistinctEstimate == 4);
+        acquire<BoundedDistinctAccumulator>(matrix);
+        CHECK(matrix->numDistinct == 4);
+        DataObjectFactory::destroy(matrix);
+    }
+}
+
+TEMPLATE_TEST_CASE("analyzeData distinct modes views", TAG_KERNELS, DenseMatrix<double>, CSRMatrix<double>) {
+    using DT = TestType;
+    DT *matrix;
+    DT *view;
+    if constexpr (std::is_same_v<DT, DenseMatrix<double>>) {
+        matrix = genGivenVals<DT>(2, {99, 0, 2, 99, 99, 2, 0, 99});
+        view = DataObjectFactory::create<DT>(matrix, 0, 2, 1, 3);
+    } else {
+        matrix = genGivenVals<DT>(3, {99, 99, 0, 2, 2, 0});
+        view = DataObjectFactory::create<DT>(matrix, 1, 3);
+        // Make a stored zero in addition to the implicit zeros.
+        view->getValues(0)[0] = 0;
+    }
+    acquire<ApproxDistinctAccumulator>(view);
+    CHECK(view->numDistinctEstimate == 2);
+    CHECK(view->numDistinct == -1);
+    acquire<BoundedDistinctAccumulator>(view);
+    CHECK(view->numDistinct == 2);
+    CHECK_FALSE(view->numDistinctEstimate.has_value());
+    DataObjectFactory::destroy(view, matrix);
 }

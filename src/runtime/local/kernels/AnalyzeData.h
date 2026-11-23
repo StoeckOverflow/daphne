@@ -21,6 +21,8 @@
 #include <runtime/local/datastructures/Column.h>
 #include <runtime/local/datastructures/DenseMatrix.h>
 
+#include <util/DistinctSketch.h>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -102,7 +104,64 @@ template <typename VT> struct DistinctAccumulator : AccumulatorBase<DistinctAccu
             throw std::overflow_error("analyzeData: distinct count overflows ssize_t");
     }
     ssize_t finalize() const { return hasNaN ? -1 : static_cast<ssize_t>(values.size()); }
-    template <class DT> void writeResult(DT *arg, size_t) const { arg->numDistinct = finalize(); }
+    template <class DT> void writeResult(DT *arg, size_t) const {
+        arg->numDistinct = finalize();
+        arg->numDistinctEstimate.reset();
+        arg->numDistinctLowerBound = -1;
+    }
+};
+
+// Select one distinct-count accumulator per acquisition.
+// Approximation affects distinct count only; other accumulators retain their contracts.
+template <typename VT> struct ApproxDistinctAccumulator : AccumulatorBase<ApproxDistinctAccumulator<VT>, VT> {
+    static constexpr size_t sketchSize = 64;
+    static constexpr int64_t hashSeed = 1234567890;
+    DistinctSketch<VT> sketch{sketchSize, hashSeed};
+    bool hasNaN = false;
+
+    void updateValue(VT value, size_t) {
+        if constexpr (std::is_floating_point_v<VT>) {
+            if (std::isnan(value)) {
+                hasNaN = true;
+                return;
+            }
+        }
+        sketch.insert(value);
+    }
+    template <class DT> void writeResult(DT *arg, size_t size) const {
+        arg->numDistinct = size == 0 ? 0 : -1;
+        arg->numDistinctLowerBound = -1;
+        arg->numDistinctEstimate = hasNaN ? std::nullopt : std::optional<double>(sketch.estimate(size));
+    }
+};
+
+// Stop growing the set after the limit, but keep scanning for NaNs and other properties.
+template <typename VT> struct BoundedDistinctAccumulator : AccumulatorBase<BoundedDistinctAccumulator<VT>, VT> {
+    static constexpr size_t setLimit = 4096;
+    std::unordered_set<VT> values;
+    bool hasNaN = false;
+
+    void updateValue(VT value, size_t) {
+        if constexpr (std::is_floating_point_v<VT>) {
+            if (std::isnan(value)) {
+                hasNaN = true;
+                return;
+            }
+        }
+        if (values.size() <= setLimit)
+            values.insert(value);
+    }
+    template <class DT> void writeResult(DT *arg, size_t) const {
+        arg->numDistinct = -1;
+        arg->numDistinctEstimate.reset();
+        arg->numDistinctLowerBound = -1;
+        if (!hasNaN) {
+            if (values.size() > setLimit)
+                arg->numDistinctLowerBound = static_cast<ssize_t>(values.size());
+            else
+                arg->numDistinct = static_cast<ssize_t>(values.size());
+        }
+    }
 };
 
 template <class... Accumulators> class AccumulatorSet {

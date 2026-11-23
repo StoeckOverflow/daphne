@@ -57,10 +57,15 @@ template <typename ValueType> class Matrix : public Structure {
     BoolOrUnknown symmetric;
 
     /**
-     * @brief Compile-time information on the number of distinct values; -1 means unknown.
+     * @brief Transferred or acquired exact number of distinct values; -1 means unknown.
      *
      */
     ssize_t numDistinct;
+    // Runtime observations, not exact facts. mutation does not invalidate them automatically.
+    // TODO: Use a consistent representation for property information that distinguishes
+    // unknown values, exact facts, sound bounds, and estimates. This is only a workaround.
+    std::optional<double> numDistinctEstimate;
+    ssize_t numDistinctLowerBound = -1;
 
     /**
      * @brief Compile-time lower and upper value bounds; std::nullopt denotes unknown.

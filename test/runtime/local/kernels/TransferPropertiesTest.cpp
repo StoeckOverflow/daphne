@@ -27,11 +27,19 @@ TEMPLATE_PRODUCT_TEST_CASE("Matrix.numDistinct transfer", TAG_KERNELS, (DenseMat
     using DT = TestType;
     auto matrix = genGivenVals<DT>(2, {0, 1, 1, 2});
     CHECK(matrix->numDistinct == -1);
+    matrix->numDistinctEstimate = 99;
+    matrix->numDistinctLowerBound = 99;
     transferProperties(matrix, 0.75, static_cast<int64_t>(BoolOrUnknown::Unknown), 3, false, 0.0, false, 0.0, nullptr);
+    CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+    CHECK(matrix->numDistinctLowerBound == -1);
     CHECK(matrix->numDistinct == 3);
     CHECK(matrix->sparsity == 0.75);
+    matrix->numDistinctEstimate = 99;
+    matrix->numDistinctLowerBound = 99;
     transferProperties(matrix, -1, static_cast<int64_t>(BoolOrUnknown::Unknown), -1, false, 0.0, false, 0.0, nullptr);
     CHECK(matrix->numDistinct == -1);
+    CHECK_FALSE(matrix->numDistinctEstimate.has_value());
+    CHECK(matrix->numDistinctLowerBound == -1);
     DataObjectFactory::destroy(matrix);
 }
 

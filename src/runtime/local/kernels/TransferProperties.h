@@ -55,6 +55,8 @@ template <typename VT> struct TransferProperties<DenseMatrix<VT>> {
         const_cast<DenseMatrix<VT> *>(arg)->sparsity = sparsity;
         const_cast<DenseMatrix<VT> *>(arg)->symmetric = static_cast<BoolOrUnknown>(symmetric);
         const_cast<DenseMatrix<VT> *>(arg)->numDistinct = numDistinct;
+        const_cast<DenseMatrix<VT> *>(arg)->numDistinctEstimate.reset();
+        const_cast<DenseMatrix<VT> *>(arg)->numDistinctLowerBound = -1;
         const_cast<DenseMatrix<VT> *>(arg)->lowerBound =
             hasLowerBound ? std::optional<double>(lowerBound) : std::nullopt;
         const_cast<DenseMatrix<VT> *>(arg)->upperBound =
@@ -72,6 +74,8 @@ template <typename VT> struct TransferProperties<CSRMatrix<VT>> {
         const_cast<CSRMatrix<VT> *>(arg)->sparsity = sparsity;
         const_cast<CSRMatrix<VT> *>(arg)->symmetric = static_cast<BoolOrUnknown>(symmetric);
         const_cast<CSRMatrix<VT> *>(arg)->numDistinct = numDistinct;
+        const_cast<CSRMatrix<VT> *>(arg)->numDistinctEstimate.reset();
+        const_cast<CSRMatrix<VT> *>(arg)->numDistinctLowerBound = -1;
         const_cast<CSRMatrix<VT> *>(arg)->lowerBound = hasLowerBound ? std::optional<double>(lowerBound) : std::nullopt;
         const_cast<CSRMatrix<VT> *>(arg)->upperBound = hasUpperBound ? std::optional<double>(upperBound) : std::nullopt;
     }
