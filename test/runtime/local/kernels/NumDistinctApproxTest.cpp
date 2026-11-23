@@ -23,10 +23,15 @@
 
 #include <tags.h>
 
+#include <util/DistinctSketch.h>
+
 #include <catch.hpp>
 
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
+#include <iterator>
+#include <set>
 
 #define DATA_TYPES DenseMatrix, CSRMatrix, Matrix
 #define VALUE_TYPES double, uint32_t
@@ -151,4 +156,46 @@ TEMPLATE_PRODUCT_TEST_CASE("numDistinctApprox - view into CSRMatrix", TAG_KERNEL
     // Allow +/-10% error. If the error is greater, the kernel is either wrongly parameterized (K to small) or the
     // algorithm broke.
     CHECK(Approx(approxResult).epsilon(1e-1) == expectedNumDistinct);
+}
+
+TEMPLATE_TEST_CASE("distinctSketch streaming estimate", TAG_KERNELS, int64_t, uint64_t, float, double) {
+    using VT = TestType;
+    using Sketch = property_acquisition::DistinctSketch<VT>;
+    constexpr uint32_t seed = 1234567890;
+    SECTION("invalid capacity") {
+        CHECK_THROWS_AS(Sketch(0, seed), std::runtime_error);
+        CHECK_THROWS_AS(Sketch(1, seed), std::runtime_error);
+    }
+    SECTION("empty and duplicate values") {
+        Sketch sketch(64, seed);
+        CHECK(sketch.estimate(0) == 0);
+        sketch.insert(VT(0));
+        sketch.insert(-VT(0));
+        sketch.insert(VT(2));
+        sketch.insert(VT(2));
+        CHECK(sketch.estimate(4) == 2);
+    }
+    SECTION("saturated sketch agrees with a sorted-hash reference") {
+        constexpr size_t size = 1000, k = 64;
+        Sketch forward(k, seed), reverse(k, seed), repeated(k, seed);
+        std::set<uint32_t> hashes;
+        for (size_t i = 0; i < size; ++i) {
+            VT value = VT(i);
+            uint32_t hash;
+            MurmurHash3_x86_32(&value, sizeof(VT), seed, &hash);
+            hashes.insert(hash);
+            forward.insert(value);
+            reverse.insert(VT(size - i - 1));
+            repeated.insert(value);
+        }
+        REQUIRE(hashes.size() >= k);
+        const uint32_t kth = *std::next(hashes.begin(), k - 1);
+        const double expected = std::min(double(size), double(k - 1) * double(UINT32_MAX) / double(kth));
+        CHECK(forward.estimate(size) == Approx(expected));
+        CHECK(reverse.estimate(size) == forward.estimate(size));
+        CHECK(repeated.estimate(size) == forward.estimate(size));
+        CHECK(std::isfinite(expected));
+        CHECK(expected > k);
+        CHECK(expected <= size);
+    }
 }
